@@ -64,14 +64,24 @@ export default async function DashboardPage() {
                   <span className="text-xs text-zinc-500">
                     {new Date(list.createdAt).toLocaleDateString()}
                   </span>
-                  <Button
-                    asChild
-                    size="sm"
-                    variant="outline"
-                    className="border-zinc-700 text-zinc-300 hover:text-white"
-                  >
-                    <Link href={`/dashboard/${list.id}`}>Edit</Link>
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="ghost"
+                      className="text-zinc-400 hover:text-white"
+                    >
+                      <Link href={`/tier-lists/${list.id}`}>View</Link>
+                    </Button>
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="outline"
+                      className="border-zinc-700 text-zinc-300 hover:text-white"
+                    >
+                      <Link href={`/dashboard/${list.id}`}>Edit</Link>
+                    </Button>
+                  </div>
                 </CardFooter>
               </Card>
             ))}

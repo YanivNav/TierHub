@@ -8,8 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 
@@ -80,7 +78,7 @@ export default function TierListForm({
     const newItems: PendingItem[] = Array.from(files).map((file) => ({
       localId: crypto.randomUUID(),
       type: file.type.startsWith("video/") ? "video" : "image",
-      label: file.name.replace(/\.[^.]+$/, ""),
+      label: "",
       file,
       previewUrl: URL.createObjectURL(file),
       labelDirty: false,
@@ -294,14 +292,11 @@ export default function TierListForm({
 
         {/* Items list */}
         {pendingItems.length > 0 && (
-          <div className="space-y-2">
+          <div className="overflow-hidden rounded-xl border border-zinc-700/50 bg-zinc-800/30 divide-y divide-zinc-700/50">
             {pendingItems.map((item) => (
-              <Card
-                key={item.localId}
-                className="flex items-center gap-3 border-zinc-800 bg-zinc-900 p-3"
-              >
-                {/* Preview */}
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-zinc-800">
+              <div key={item.localId} className="flex items-center gap-3 p-3">
+                {/* Thumbnail */}
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-700">
                   {item.type === "image" && item.previewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -310,34 +305,49 @@ export default function TierListForm({
                       className="h-full w-full object-cover"
                     />
                   ) : item.type === "video" ? (
-                    <Video className="h-6 w-6 text-zinc-400" />
+                    <Video className="h-5 w-5 text-purple-400" />
                   ) : (
-                    <Type className="h-6 w-6 text-zinc-400" />
+                    <Type className="h-5 w-5 text-blue-400" />
                   )}
                 </div>
 
-                {/* Label */}
-                <Input
-                  value={item.label}
-                  onChange={(e) => updateLabel(item.localId, e.target.value)}
-                  placeholder={item.type === "text" ? "Item label..." : "Label (optional)"}
-                  className="h-8 flex-1 border-zinc-700 bg-zinc-800 text-sm"
-                />
+                {/* Label + filename */}
+                <div className="min-w-0 flex-1">
+                  <input
+                    value={item.label}
+                    onChange={(e) => updateLabel(item.localId, e.target.value)}
+                    placeholder={item.type === "text" ? "Item label..." : "Label (optional)"}
+                    className="w-full bg-transparent text-sm font-medium text-white placeholder:text-zinc-500 outline-none"
+                  />
+                  {item.file && (
+                    <p className="mt-0.5 truncate text-xs text-zinc-500">
+                      {item.file.name}
+                    </p>
+                  )}
+                </div>
 
-                <Badge variant="secondary" className="shrink-0 text-xs capitalize">
-                  {item.type}
-                </Badge>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 text-zinc-500 hover:text-white"
-                  onClick={() => removeItem(item.localId)}
+                {/* Type chip */}
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                    item.type === "image"
+                      ? "bg-blue-500/20 text-blue-300"
+                      : item.type === "video"
+                      ? "bg-purple-500/20 text-purple-300"
+                      : "bg-zinc-600/50 text-zinc-300"
+                  }`}
                 >
-                  <X className="h-4 w-4" />
-                </Button>
-              </Card>
+                  {item.type}
+                </span>
+
+                {/* Remove */}
+                <button
+                  type="button"
+                  onClick={() => removeItem(item.localId)}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-white"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
             ))}
           </div>
         )}
