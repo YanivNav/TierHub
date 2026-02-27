@@ -1,0 +1,376 @@
+"use client";
+
+import { useState, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { Upload, Type, Video, X } from "lucide-react";
+import { trpc } from "@/lib/trpc/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+
+type ItemType = "text" | "image" | "video";
+
+type ExistingItemData = {
+  id: string;
+  type: ItemType;
+  label: string;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+};
+
+type PendingItem = {
+  localId: string;
+  dbId?: string;
+  type: ItemType;
+  label: string;
+  file?: File;
+  previewUrl?: string;
+  labelDirty: boolean;
+};
+
+type Props = {
+  mode: "create" | "edit";
+  tierListId?: string;
+  initialTitle?: string;
+  initialDescription?: string;
+  initialIsPublic?: boolean;
+  initialItems?: ExistingItemData[];
+};
+
+export default function TierListForm({
+  mode,
+  tierListId,
+  initialTitle = "",
+  initialDescription = "",
+  initialIsPublic = true,
+  initialItems = [],
+}: Props) {
+  const router = useRouter();
+  const [title, setTitle] = useState(initialTitle);
+  const [description, setDescription] = useState(initialDescription);
+  const [isPublic, setIsPublic] = useState(initialIsPublic);
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>(() =>
+    initialItems.map((item) => ({
+      localId: item.id,
+      dbId: item.id,
+      type: item.type,
+      label: item.label,
+      previewUrl: item.imageUrl ?? item.videoUrl ?? undefined,
+      labelDirty: false,
+    }))
+  );
+  const [isDragging, setIsDragging] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const createTierList = trpc.tierList.create.useMutation();
+  const updateTierList = trpc.tierList.update.useMutation();
+  const getUploadUrl = trpc.item.getUploadUrl.useMutation();
+  const createMany = trpc.item.createMany.useMutation();
+  const updateItem = trpc.item.update.useMutation();
+  const deleteItem = trpc.item.delete.useMutation();
+
+  const addFiles = useCallback((files: FileList | File[]) => {
+    const newItems: PendingItem[] = Array.from(files).map((file) => ({
+      localId: crypto.randomUUID(),
+      type: file.type.startsWith("video/") ? "video" : "image",
+      label: file.name.replace(/\.[^.]+$/, ""),
+      file,
+      previewUrl: URL.createObjectURL(file),
+      labelDirty: false,
+    }));
+    setPendingItems((prev) => [...prev, ...newItems]);
+  }, []);
+
+  const addTextItem = () => {
+    setPendingItems((prev) => [
+      ...prev,
+      { localId: crypto.randomUUID(), type: "text", label: "", labelDirty: false },
+    ]);
+  };
+
+  const removeItem = (localId: string) => {
+    setPendingItems((prev) => {
+      const item = prev.find((i) => i.localId === localId);
+      if (item?.previewUrl && !item.dbId) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter((i) => i.localId !== localId);
+    });
+  };
+
+  const updateLabel = (localId: string, label: string) => {
+    setPendingItems((prev) =>
+      prev.map((i) =>
+        i.localId === localId
+          ? { ...i, label, labelDirty: i.dbId !== undefined ? true : i.labelDirty }
+          : i
+      )
+    );
+  };
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
+    },
+    [addFiles]
+  );
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      if (mode === "create") {
+        const list = await createTierList.mutateAsync({
+          title: title.trim(),
+          description: description.trim() || undefined,
+          isPublic,
+        });
+        if (!list) throw new Error("Failed to create tier list");
+        await uploadAndSaveItems(list.id, pendingItems);
+        router.push("/dashboard");
+      } else {
+        // Edit mode
+        await updateTierList.mutateAsync({
+          id: tierListId!,
+          title: title.trim(),
+          description: description.trim() || undefined,
+          isPublic,
+        });
+
+        // Delete removed existing items
+        const removedDbIds = initialItems
+          .filter((orig) => !pendingItems.some((p) => p.dbId === orig.id))
+          .map((orig) => orig.id);
+        await Promise.all(removedDbIds.map((id) => deleteItem.mutateAsync({ id })));
+
+        // Update label-changed existing items
+        await Promise.all(
+          pendingItems
+            .filter((p) => p.dbId && p.labelDirty)
+            .map((p) => updateItem.mutateAsync({ id: p.dbId!, label: p.label }))
+        );
+
+        // Create new items
+        const newItems = pendingItems.filter((p) => !p.dbId);
+        if (newItems.length > 0) {
+          await uploadAndSaveItems(tierListId!, newItems);
+        }
+
+        router.push("/dashboard");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+      setIsSubmitting(false);
+    }
+  };
+
+  async function uploadAndSaveItems(listId: string, items: PendingItem[]) {
+    if (items.length === 0) return;
+    const itemsToSave = await Promise.all(
+      items.map(async (item) => {
+        if (item.type === "text") {
+          return { label: item.label || "Untitled", type: "text" as const };
+        }
+        const { uploadUrl, publicUrl } = await getUploadUrl.mutateAsync({
+          tierListId: listId,
+          filename: item.file!.name,
+          contentType: item.file!.type,
+        });
+        await fetch(uploadUrl, {
+          method: "PUT",
+          body: item.file,
+          headers: { "Content-Type": item.file!.type },
+        });
+        return {
+          label: item.label || item.file!.name,
+          type: item.type,
+          imageUrl: item.type === "image" ? publicUrl : undefined,
+          videoUrl: item.type === "video" ? publicUrl : undefined,
+        };
+      })
+    );
+    await createMany.mutateAsync({ tierListId: listId, items: itemsToSave });
+  }
+
+  const isCreate = mode === "create";
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Name */}
+      <div className="space-y-2">
+        <Label htmlFor="title">Name</Label>
+        <Input
+          id="title"
+          placeholder="My tier list..."
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+          className="border-zinc-700 bg-zinc-900"
+        />
+      </div>
+
+      {/* Description */}
+      <div className="space-y-2">
+        <Label htmlFor="description">
+          Description <span className="text-zinc-500">(optional)</span>
+        </Label>
+        <Textarea
+          id="description"
+          placeholder="What is this tier list about?"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          className="resize-none border-zinc-700 bg-zinc-900"
+        />
+      </div>
+
+      {/* Visibility */}
+      <div className="flex items-center gap-3">
+        <Switch id="public" checked={isPublic} onCheckedChange={setIsPublic} />
+        <Label htmlFor="public" className="cursor-pointer">
+          {isPublic ? "Public" : "Private"}
+        </Label>
+      </div>
+
+      <Separator className="bg-zinc-800" />
+
+      {/* Items */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Label>
+            Items <span className="text-zinc-500">({pendingItems.length})</span>
+          </Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addTextItem}
+            className="border-zinc-700 text-zinc-300 hover:text-white"
+          >
+            <Type className="mr-2 h-4 w-4" />
+            Add Text Item
+          </Button>
+        </div>
+
+        {/* Drop zone */}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
+            isDragging
+              ? "border-blue-500 bg-blue-500/10"
+              : "border-zinc-700 hover:border-zinc-500"
+          }`}
+        >
+          <Upload className="h-8 w-8 text-zinc-500" />
+          <p className="text-sm text-zinc-400">
+            Drag & drop images or videos, or{" "}
+            <span className="text-blue-400">browse</span>
+          </p>
+          <p className="text-xs text-zinc-600">
+            Supports JPG, PNG, GIF, WebP, MP4, WebM
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,video/*"
+            className="hidden"
+            onChange={(e) => e.target.files && addFiles(e.target.files)}
+          />
+        </div>
+
+        {/* Items list */}
+        {pendingItems.length > 0 && (
+          <div className="space-y-2">
+            {pendingItems.map((item) => (
+              <Card
+                key={item.localId}
+                className="flex items-center gap-3 border-zinc-800 bg-zinc-900 p-3"
+              >
+                {/* Preview */}
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-zinc-800">
+                  {item.type === "image" && item.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.previewUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : item.type === "video" ? (
+                    <Video className="h-6 w-6 text-zinc-400" />
+                  ) : (
+                    <Type className="h-6 w-6 text-zinc-400" />
+                  )}
+                </div>
+
+                {/* Label */}
+                <Input
+                  value={item.label}
+                  onChange={(e) => updateLabel(item.localId, e.target.value)}
+                  placeholder={item.type === "text" ? "Item label..." : "Label (optional)"}
+                  className="h-8 flex-1 border-zinc-700 bg-zinc-800 text-sm"
+                />
+
+                <Badge variant="secondary" className="shrink-0 text-xs capitalize">
+                  {item.type}
+                </Badge>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 text-zinc-500 hover:text-white"
+                  onClick={() => removeItem(item.localId)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-red-400">{error}</p>}
+
+      <Separator className="bg-zinc-800" />
+
+      <div className="flex justify-end gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          className="border-zinc-700 text-zinc-300"
+          onClick={() => router.push("/dashboard")}
+          disabled={isSubmitting}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={!title.trim() || isSubmitting}
+          className="bg-blue-600 hover:bg-blue-500"
+        >
+          {isSubmitting
+            ? isCreate
+              ? "Creating..."
+              : "Saving..."
+            : isCreate
+            ? "Create Tier List"
+            : "Save Changes"}
+        </Button>
+      </div>
+    </form>
+  );
+}

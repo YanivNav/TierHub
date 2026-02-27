@@ -41,6 +41,7 @@ yarn-error.log*
 # AI tooling
 .claude/
 .agents/
+skills-lock.json
 
 # vercel
 .vercel
@@ -48,3 +49,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# clerk configuration (can include secrets)
+/.clerk/

@@ -1,0 +1,46 @@
+import { auth } from "@clerk/nextjs/server";
+import { redirect, notFound } from "next/navigation";
+import { and, asc, eq } from "drizzle-orm";
+import { db } from "@/server/db";
+import { items, tierLists } from "@/server/db/schema";
+import TierListForm from "@/components/tier-list-form";
+
+export default async function EditTierListPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+
+  const { id } = await params;
+
+  const list = await db.query.tierLists.findFirst({
+    where: and(eq(tierLists.id, id), eq(tierLists.userId, userId)),
+    with: { items: { orderBy: asc(items.rank) } },
+  });
+
+  if (!list) notFound();
+
+  return (
+    <main className="min-h-screen bg-zinc-950 p-8 text-white">
+      <div className="mx-auto max-w-2xl">
+        <h1 className="mb-8 text-3xl font-bold">Edit Tier List</h1>
+        <TierListForm
+          mode="edit"
+          tierListId={list.id}
+          initialTitle={list.title}
+          initialDescription={list.description ?? ""}
+          initialIsPublic={list.isPublic}
+          initialItems={list.items.map((item) => ({
+            id: item.id,
+            type: item.type,
+            label: item.label,
+            imageUrl: item.imageUrl,
+            videoUrl: item.videoUrl,
+          }))}
+        />
+      </div>
+    </main>
+  );
+}
