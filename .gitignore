@@ -36,6 +36,11 @@ yarn-error.log*
 
 # IDE
 .idea/
+.vscode/
+
+# AI tooling
+.claude/
+.agents/
 
 # vercel
 .vercel
