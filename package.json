@@ -21,6 +21,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "superjson": "^2.2.6",
+    "svix": "^1.86.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
