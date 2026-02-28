@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/server/db";
-import { items, tierLists } from "@/server/db/schema";
+import { items, tierLists, tiers } from "@/server/db/schema";
 import TierListForm from "@/components/tier-list-form";
 
 export default async function EditTierListPage({
@@ -17,7 +17,10 @@ export default async function EditTierListPage({
 
   const list = await db.query.tierLists.findFirst({
     where: and(eq(tierLists.id, id), eq(tierLists.userId, userId)),
-    with: { items: { orderBy: asc(items.rank) } },
+    with: {
+      tiers: { orderBy: asc(tiers.rank) },
+      items: { orderBy: asc(items.rank) },
+    },
   });
 
   if (!list) notFound();
@@ -26,12 +29,14 @@ export default async function EditTierListPage({
     <main className="min-h-screen bg-zinc-950 p-8 text-white">
       <div className="mx-auto max-w-2xl">
         <h1 className="mb-8 text-3xl font-bold">Edit Tier List</h1>
+
         <TierListForm
           mode="edit"
           tierListId={list.id}
           initialTitle={list.title}
           initialDescription={list.description ?? ""}
           initialIsPublic={list.isPublic}
+          initialTiers={list.tiers}
           initialItems={list.items.map((item) => ({
             id: item.id,
             type: item.type,

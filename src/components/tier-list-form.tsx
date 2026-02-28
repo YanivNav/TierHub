@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import TierEditor, { type PendingTier } from "@/components/tier-editor";
 
 type ItemType = "text" | "image" | "video";
 
@@ -19,6 +20,13 @@ type ExistingItemData = {
   label: string;
   imageUrl?: string | null;
   videoUrl?: string | null;
+};
+
+type InitialTierData = {
+  id: string;
+  label: string;
+  color: string;
+  rank: number;
 };
 
 type PendingItem = {
@@ -38,6 +46,7 @@ type Props = {
   initialDescription?: string;
   initialIsPublic?: boolean;
   initialItems?: ExistingItemData[];
+  initialTiers?: InitialTierData[];
 };
 
 export default function TierListForm({
@@ -47,11 +56,13 @@ export default function TierListForm({
   initialDescription = "",
   initialIsPublic = true,
   initialItems = [],
+  initialTiers = [],
 }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
   const [isPublic, setIsPublic] = useState(initialIsPublic);
+
   const [pendingItems, setPendingItems] = useState<PendingItem[]>(() =>
     initialItems.map((item) => ({
       localId: item.id,
@@ -62,17 +73,33 @@ export default function TierListForm({
       labelDirty: false,
     }))
   );
+
+  const [pendingTiers, setPendingTiers] = useState<PendingTier[]>(() =>
+    [...initialTiers]
+      .sort((a, b) => a.rank - b.rank)
+      .map((t) => ({ localId: t.id, dbId: t.id, label: t.label, color: t.color }))
+  );
+
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Item mutations
   const createTierList = trpc.tierList.create.useMutation();
   const updateTierList = trpc.tierList.update.useMutation();
   const getUploadUrl = trpc.item.getUploadUrl.useMutation();
-  const createMany = trpc.item.createMany.useMutation();
+  const createManyItems = trpc.item.createMany.useMutation();
   const updateItem = trpc.item.update.useMutation();
   const deleteItem = trpc.item.delete.useMutation();
+
+  // Tier mutations (edit mode only)
+  const createTier = trpc.tier.create.useMutation();
+  const updateTier = trpc.tier.update.useMutation();
+  const deleteTier = trpc.tier.delete.useMutation();
+  const reorderTiers = trpc.tier.reorder.useMutation();
+
+  // ── Item handlers ──────────────────────────────────────────────────────────
 
   const addFiles = useCallback((files: FileList | File[]) => {
     const newItems: PendingItem[] = Array.from(files).map((file) => ({
@@ -86,22 +113,20 @@ export default function TierListForm({
     setPendingItems((prev) => [...prev, ...newItems]);
   }, []);
 
-  const addTextItem = () => {
+  const addTextItem = () =>
     setPendingItems((prev) => [
       ...prev,
       { localId: crypto.randomUUID(), type: "text", label: "", labelDirty: false },
     ]);
-  };
 
-  const removeItem = (localId: string) => {
+  const removeItem = (localId: string) =>
     setPendingItems((prev) => {
       const item = prev.find((i) => i.localId === localId);
       if (item?.previewUrl && !item.dbId) URL.revokeObjectURL(item.previewUrl);
       return prev.filter((i) => i.localId !== localId);
     });
-  };
 
-  const updateLabel = (localId: string, label: string) => {
+  const updateItemLabel = (localId: string, label: string) =>
     setPendingItems((prev) =>
       prev.map((i) =>
         i.localId === localId
@@ -109,7 +134,6 @@ export default function TierListForm({
           : i
       )
     );
-  };
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -119,6 +143,35 @@ export default function TierListForm({
     },
     [addFiles]
   );
+
+  // ── Tier handlers (local state only — no mutations yet) ────────────────────
+
+  const handleAddTier = () =>
+    setPendingTiers((prev) => [
+      ...prev,
+      { localId: crypto.randomUUID(), label: "New", color: "#6b7280" },
+    ]);
+
+  const handleUpdateTier = (localId: string, data: { label?: string; color?: string }) =>
+    setPendingTiers((prev) =>
+      prev.map((t) => (t.localId === localId ? { ...t, ...data } : t))
+    );
+
+  const handleDeleteTier = (localId: string) =>
+    setPendingTiers((prev) => prev.filter((t) => t.localId !== localId));
+
+  const handleMoveTier = (localId: string, direction: "up" | "down") =>
+    setPendingTiers((prev) => {
+      const idx = prev.findIndex((t) => t.localId === localId);
+      if (direction === "up" && idx === 0) return prev;
+      if (direction === "down" && idx === prev.length - 1) return prev;
+      const next = [...prev];
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      [next[idx], next[swapIdx]] = [next[swapIdx]!, next[idx]!];
+      return next;
+    });
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,7 +190,7 @@ export default function TierListForm({
         await uploadAndSaveItems(list.id, pendingItems);
         router.push("/dashboard");
       } else {
-        // Edit mode
+        // 1. Update metadata
         await updateTierList.mutateAsync({
           id: tierListId!,
           title: title.trim(),
@@ -145,13 +198,50 @@ export default function TierListForm({
           isPublic,
         });
 
-        // Delete removed existing items
-        const removedDbIds = initialItems
+        // 2. Tiers ────────────────────────────────────────────────────────────
+
+        // Delete tiers that were removed
+        const removedTierIds = initialTiers
+          .filter((orig) => !pendingTiers.some((t) => t.dbId === orig.id))
+          .map((orig) => orig.id);
+        await Promise.all(removedTierIds.map((id) => deleteTier.mutateAsync({ id })));
+
+        // Update existing tiers (label / color may have changed)
+        await Promise.all(
+          pendingTiers
+            .filter((t) => t.dbId)
+            .map((t) => updateTier.mutateAsync({ id: t.dbId!, label: t.label, color: t.color }))
+        );
+
+        // Create new tiers sequentially so we can collect their DB IDs
+        const newTierIdMap = new Map<string, string>(); // localId → dbId
+        for (const tier of pendingTiers.filter((t) => !t.dbId)) {
+          const created = await createTier.mutateAsync({
+            tierListId: tierListId!,
+            label: tier.label,
+            color: tier.color,
+          });
+          newTierIdMap.set(tier.localId, created.id);
+        }
+
+        // Reorder all surviving tiers to match current pendingTiers order
+        const tiersToReorder = pendingTiers.map((t, i) => ({
+          id: t.dbId ?? newTierIdMap.get(t.localId)!,
+          rank: i,
+        }));
+        if (tiersToReorder.length > 0) {
+          await reorderTiers.mutateAsync({ tierListId: tierListId!, tiers: tiersToReorder });
+        }
+
+        // 3. Items ────────────────────────────────────────────────────────────
+
+        // Delete removed items
+        const removedItemIds = initialItems
           .filter((orig) => !pendingItems.some((p) => p.dbId === orig.id))
           .map((orig) => orig.id);
-        await Promise.all(removedDbIds.map((id) => deleteItem.mutateAsync({ id })));
+        await Promise.all(removedItemIds.map((id) => deleteItem.mutateAsync({ id })));
 
-        // Update label-changed existing items
+        // Update label-changed items
         await Promise.all(
           pendingItems
             .filter((p) => p.dbId && p.labelDirty)
@@ -160,9 +250,7 @@ export default function TierListForm({
 
         // Create new items
         const newItems = pendingItems.filter((p) => !p.dbId);
-        if (newItems.length > 0) {
-          await uploadAndSaveItems(tierListId!, newItems);
-        }
+        if (newItems.length > 0) await uploadAndSaveItems(tierListId!, newItems);
 
         router.push("/dashboard");
       }
@@ -197,7 +285,7 @@ export default function TierListForm({
         };
       })
     );
-    await createMany.mutateAsync({ tierListId: listId, items: itemsToSave });
+    await createManyItems.mutateAsync({ tierListId: listId, items: itemsToSave });
   }
 
   const isCreate = mode === "create";
@@ -242,6 +330,23 @@ export default function TierListForm({
 
       <Separator className="bg-zinc-800" />
 
+      {/* Tier structure — edit mode only */}
+      {!isCreate && (
+        <>
+          <div className="space-y-3">
+            <Label>Tier Structure</Label>
+            <TierEditor
+              tiers={pendingTiers}
+              onAdd={handleAddTier}
+              onUpdate={handleUpdateTier}
+              onDelete={handleDeleteTier}
+              onMove={handleMoveTier}
+            />
+          </div>
+          <Separator className="bg-zinc-800" />
+        </>
+      )}
+
       {/* Items */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -267,19 +372,14 @@ export default function TierListForm({
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
-            isDragging
-              ? "border-blue-500 bg-blue-500/10"
-              : "border-zinc-700 hover:border-zinc-500"
+            isDragging ? "border-blue-500 bg-blue-500/10" : "border-zinc-700 hover:border-zinc-500"
           }`}
         >
           <Upload className="h-8 w-8 text-zinc-500" />
           <p className="text-sm text-zinc-400">
-            Drag & drop images or videos, or{" "}
-            <span className="text-blue-400">browse</span>
+            Drag & drop images or videos, or <span className="text-blue-400">browse</span>
           </p>
-          <p className="text-xs text-zinc-600">
-            Supports JPG, PNG, GIF, WebP, MP4, WebM
-          </p>
+          <p className="text-xs text-zinc-600">Supports JPG, PNG, GIF, WebP, MP4, WebM</p>
           <input
             ref={fileInputRef}
             type="file"
@@ -292,18 +392,13 @@ export default function TierListForm({
 
         {/* Items list */}
         {pendingItems.length > 0 && (
-          <div className="overflow-hidden rounded-xl border border-zinc-700/50 bg-zinc-800/30 divide-y divide-zinc-700/50">
+          <div className="divide-y divide-zinc-700/50 overflow-hidden rounded-xl border border-zinc-700/50 bg-zinc-800/30">
             {pendingItems.map((item) => (
               <div key={item.localId} className="flex items-center gap-3 p-3">
-                {/* Thumbnail */}
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-700">
                   {item.type === "image" && item.previewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={item.previewUrl}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
+                    <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
                   ) : item.type === "video" ? (
                     <Video className="h-5 w-5 text-purple-400" />
                   ) : (
@@ -311,22 +406,18 @@ export default function TierListForm({
                   )}
                 </div>
 
-                {/* Label + filename */}
                 <div className="min-w-0 flex-1">
                   <input
                     value={item.label}
-                    onChange={(e) => updateLabel(item.localId, e.target.value)}
+                    onChange={(e) => updateItemLabel(item.localId, e.target.value)}
                     placeholder={item.type === "text" ? "Item label..." : "Label (optional)"}
                     className="w-full bg-transparent text-sm font-medium text-white placeholder:text-zinc-500 outline-none"
                   />
                   {item.file && (
-                    <p className="mt-0.5 truncate text-xs text-zinc-500">
-                      {item.file.name}
-                    </p>
+                    <p className="mt-0.5 truncate text-xs text-zinc-500">{item.file.name}</p>
                   )}
                 </div>
 
-                {/* Type chip */}
                 <span
                   className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
                     item.type === "image"
@@ -339,7 +430,6 @@ export default function TierListForm({
                   {item.type}
                 </span>
 
-                {/* Remove */}
                 <button
                   type="button"
                   onClick={() => removeItem(item.localId)}
@@ -373,12 +463,8 @@ export default function TierListForm({
           className="bg-blue-600 hover:bg-blue-500"
         >
           {isSubmitting
-            ? isCreate
-              ? "Creating..."
-              : "Saving..."
-            : isCreate
-            ? "Create Tier List"
-            : "Save Changes"}
+            ? isCreate ? "Creating..." : "Saving..."
+            : isCreate ? "Create Tier List" : "Save Changes"}
         </Button>
       </div>
     </form>

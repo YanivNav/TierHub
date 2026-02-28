@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -11,7 +11,16 @@ import {
   useDroppable,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Video, Type, Link, Check } from "lucide-react";
+import {
+  Video,
+  Type,
+  Link,
+  Check,
+  ChevronUp,
+  ChevronDown,
+  Trash2,
+  Plus,
+} from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 
 type ItemType = "text" | "image" | "video";
@@ -33,21 +42,28 @@ type Item = {
 };
 
 export default function TierBoard({
-  tiers,
+  tierListId,
+  tiers: initialTiers,
   items,
   isOwner,
 }: {
+  tierListId: string;
   tiers: Tier[];
   items: Item[];
   isOwner: boolean;
 }) {
+  const [localTiers, setLocalTiers] = useState<Tier[]>(initialTiers);
   const [positions, setPositions] = useState<Record<string, string | null>>(
     () => Object.fromEntries(items.map((item) => [item.id, item.tierId]))
   );
   const [activeId, setActiveId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const updateTier = trpc.item.updateTier.useMutation();
+  const updateItemTier = trpc.item.updateTier.useMutation();
+  const createTier = trpc.tier.create.useMutation();
+  const updateTier = trpc.tier.update.useMutation();
+  const deleteTier = trpc.tier.delete.useMutation();
+  const reorderTiers = trpc.tier.reorder.useMutation();
 
   const activeItem = activeId ? items.find((i) => i.id === activeId) : null;
 
@@ -66,11 +82,10 @@ export default function TierBoard({
 
     const itemId = active.id as string;
     const newTierId = over.id === "unranked" ? null : (over.id as string);
-    const currentTierId = positions[itemId];
-    if (newTierId === currentTierId) return;
+    if (newTierId === positions[itemId]) return;
 
     setPositions((prev) => ({ ...prev, [itemId]: newTierId }));
-    if (isOwner) updateTier.mutate({ id: itemId, tierId: newTierId, rank: 0 });
+    if (isOwner) updateItemTier.mutate({ id: itemId, tierId: newTierId, rank: 0 });
   }
 
   function handleCopyLink() {
@@ -79,7 +94,46 @@ export default function TierBoard({
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const unrankedItems = getItemsInTier(null);
+  function handleAddTier() {
+    createTier.mutate(
+      { tierListId, label: "New", color: "#6b7280" },
+      { onSuccess: (created) => setLocalTiers((prev) => [...prev, created]) }
+    );
+  }
+
+  function handleUpdateTier(id: string, data: { label?: string; color?: string }) {
+    setLocalTiers((prev) => prev.map((t) => (t.id === id ? { ...t, ...data } : t)));
+    updateTier.mutate({ id, ...data });
+  }
+
+  function handleDeleteTier(id: string) {
+    setLocalTiers((prev) => prev.filter((t) => t.id !== id));
+    setPositions((prev) => {
+      const next = { ...prev };
+      for (const itemId in next) {
+        if (next[itemId] === id) next[itemId] = null;
+      }
+      return next;
+    });
+    deleteTier.mutate({ id });
+  }
+
+  function handleMoveTier(id: string, direction: "up" | "down") {
+    const idx = localTiers.findIndex((t) => t.id === id);
+    if (direction === "up" && idx === 0) return;
+    if (direction === "down" && idx === localTiers.length - 1) return;
+
+    const next = [...localTiers];
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    [next[idx], next[swapIdx]] = [next[swapIdx]!, next[idx]!];
+
+    const reordered = next.map((t, i) => ({ ...t, rank: i }));
+    setLocalTiers(reordered);
+    reorderTiers.mutate({
+      tierListId,
+      tiers: reordered.map((t) => ({ id: t.id, rank: t.rank })),
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -108,26 +162,37 @@ export default function TierBoard({
         onDragEnd={handleDragEnd}
         collisionDetection={pointerWithin}
       >
-        {/* Tier rows */}
         <div className="overflow-hidden rounded-xl border border-zinc-800">
-          {tiers.map((tier, i) => (
+          {localTiers.map((tier, i) => (
             <TierRow
               key={tier.id}
               tier={tier}
               items={getItemsInTier(tier.id)}
-              isLast={i === tiers.length - 1}
+              isFirst={i === 0}
+              isLast={i === localTiers.length - 1}
               isDragging={!!activeId}
               isOwner={isOwner}
+              onUpdateTier={handleUpdateTier}
+              onDeleteTier={handleDeleteTier}
+              onMoveUp={() => handleMoveTier(tier.id, "up")}
+              onMoveDown={() => handleMoveTier(tier.id, "down")}
             />
           ))}
+
+          {isOwner && (
+            <button
+              type="button"
+              onClick={handleAddTier}
+              disabled={createTier.isPending}
+              className="flex w-full items-center justify-center gap-2 py-2.5 text-sm text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300 disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              Add tier
+            </button>
+          )}
         </div>
 
-        {/* Unranked pool */}
-        <UnrankedPool
-          items={unrankedItems}
-          isDragging={!!activeId}
-          isOwner={isOwner}
-        />
+        <UnrankedPool items={getItemsInTier(null)} isDragging={!!activeId} />
 
         <DragOverlay dropAnimation={null}>
           {activeItem && <ItemCard item={activeItem} isOverlay />}
@@ -140,34 +205,122 @@ export default function TierBoard({
 function TierRow({
   tier,
   items,
+  isFirst,
   isLast,
   isDragging,
   isOwner,
+  onUpdateTier,
+  onDeleteTier,
+  onMoveUp,
+  onMoveDown,
 }: {
   tier: Tier;
   items: Item[];
+  isFirst: boolean;
   isLast: boolean;
   isDragging: boolean;
   isOwner: boolean;
+  onUpdateTier: (id: string, data: { label?: string; color?: string }) => void;
+  onDeleteTier: (id: string) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: tier.id });
+  const [label, setLabel] = useState(tier.label);
+  const [color, setColor] = useState(tier.color);
+  const colorRef = useRef<HTMLInputElement>(null);
+  const colorDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    setLabel(tier.label);
+    setColor(tier.color);
+  }, [tier.label, tier.color]);
+
+  useEffect(() => () => clearTimeout(colorDebounce.current), []);
+
+  function handleLabelBlur() {
+    const trimmed = label.trim();
+    if (!trimmed) { setLabel(tier.label); return; }
+    if (trimmed !== tier.label) onUpdateTier(tier.id, { label: trimmed });
+  }
+
+  function handleColorChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const c = e.target.value;
+    setColor(c);
+    clearTimeout(colorDebounce.current);
+    colorDebounce.current = setTimeout(() => onUpdateTier(tier.id, { color: c }), 600);
+  }
+
+  // All rows have a bottom border except the very last when not in owner mode
+  // (in owner mode the "Add tier" button follows, so last row still needs a border)
+  const showBorder = !isLast || isOwner;
 
   return (
-    <div
-      className={`flex min-h-[5.5rem] ${!isLast ? "border-b border-zinc-800" : ""}`}
-    >
-      {/* Tier label */}
-      <div
-        className="flex w-16 shrink-0 items-center justify-center text-xl font-black sm:w-20"
-        style={{
-          backgroundColor: tier.color + "22",
-          borderRight: `3px solid ${tier.color}`,
-        }}
-      >
-        <span style={{ color: tier.color }}>{tier.label}</span>
-      </div>
+    <div className={`flex min-h-[5.5rem] ${showBorder ? "border-b border-zinc-800" : ""}`}>
+      {/* Label cell */}
+      {isOwner ? (
+        <div
+          className="flex w-24 shrink-0 flex-col items-center justify-center gap-1 py-2 sm:w-28"
+          style={{ backgroundColor: color + "22", borderRight: `3px solid ${color}` }}
+        >
+          <button
+            type="button"
+            onClick={() => colorRef.current?.click()}
+            title="Change color"
+            className="h-3 w-3 rounded-full border border-white/20 transition-transform hover:scale-125"
+            style={{ backgroundColor: color }}
+          />
+          <input ref={colorRef} type="color" value={color} onChange={handleColorChange} className="sr-only" />
 
-      {/* Drop area */}
+          <input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            onBlur={handleLabelBlur}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+            maxLength={10}
+            className="w-14 bg-transparent text-center text-xl font-black outline-none"
+            style={{ color }}
+          />
+
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={isFirst}
+              title="Move up"
+              className="rounded p-0.5 text-zinc-500 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-20"
+            >
+              <ChevronUp className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={isLast}
+              title="Move down"
+              className="rounded p-0.5 text-zinc-500 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-20"
+            >
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onDeleteTier(tier.id)}
+              title="Delete tier"
+              className="rounded p-0.5 text-zinc-600 hover:bg-red-500/20 hover:text-red-400"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="flex w-16 shrink-0 items-center justify-center text-xl font-black sm:w-20"
+          style={{ backgroundColor: tier.color + "22", borderRight: `3px solid ${tier.color}` }}
+        >
+          <span style={{ color: tier.color }}>{tier.label}</span>
+        </div>
+      )}
+
+      {/* Drop zone */}
       <div
         ref={setNodeRef}
         className={`flex flex-1 flex-wrap content-start gap-2 p-2 transition-colors ${
@@ -175,22 +328,14 @@ function TierRow({
         }`}
       >
         {items.map((item) => (
-          <DraggableItem key={item.id} item={item} isOwner={isOwner} />
+          <DraggableItem key={item.id} item={item} />
         ))}
       </div>
     </div>
   );
 }
 
-function UnrankedPool({
-  items,
-  isDragging,
-  isOwner,
-}: {
-  items: Item[];
-  isDragging: boolean;
-  isOwner: boolean;
-}) {
+function UnrankedPool({ items, isDragging }: { items: Item[]; isDragging: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: "unranked" });
 
   return (
@@ -200,13 +345,13 @@ function UnrankedPool({
       </p>
       <div
         ref={setNodeRef}
-        className={`min-h-20 rounded-xl border transition-colors ${
+        className={`min-h-20 rounded-xl border p-3 transition-colors ${
           isOver
             ? "border-zinc-600 bg-white/5"
             : isDragging
             ? "border-zinc-700 bg-white/[0.02]"
             : "border-zinc-800"
-        } p-3`}
+        }`}
       >
         {items.length === 0 && !isDragging ? (
           <p className="flex h-14 items-center justify-center text-sm text-zinc-600">
@@ -215,7 +360,7 @@ function UnrankedPool({
         ) : (
           <div className="flex flex-wrap gap-2">
             {items.map((item) => (
-              <DraggableItem key={item.id} item={item} isOwner={isOwner} />
+              <DraggableItem key={item.id} item={item} />
             ))}
           </div>
         )}
@@ -224,17 +369,16 @@ function UnrankedPool({
   );
 }
 
-function DraggableItem({ item, isOwner }: { item: Item; isOwner: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: item.id });
+function DraggableItem({ item }: { item: Item }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: item.id,
+  });
 
   return (
     <div
       ref={setNodeRef}
       style={transform ? { transform: CSS.Translate.toString(transform) } : undefined}
-      className={`cursor-grab active:cursor-grabbing ${
-        isDragging ? "opacity-30" : ""
-      }`}
+      className={`cursor-grab active:cursor-grabbing ${isDragging ? "opacity-30" : ""}`}
       {...attributes}
       {...listeners}
     >
@@ -245,26 +389,17 @@ function DraggableItem({ item, isOwner }: { item: Item; isOwner: boolean }) {
 
 function ItemCard({ item, isOverlay }: { item: Item; isOverlay?: boolean }) {
   const base = `relative h-20 w-20 overflow-hidden rounded-lg border transition-shadow ${
-    isOverlay
-      ? "border-blue-500 shadow-2xl shadow-blue-500/20"
-      : "border-zinc-700"
+    isOverlay ? "border-blue-500 shadow-2xl shadow-blue-500/20" : "border-zinc-700"
   }`;
 
   if (item.type === "image" && item.imageUrl) {
     return (
       <div className={base}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={item.imageUrl}
-          alt={item.label}
-          className="h-full w-full object-cover"
-          draggable={false}
-        />
+        <img src={item.imageUrl} alt={item.label} className="h-full w-full object-cover" draggable={false} />
         {item.label && (
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-1 pb-1 pt-3">
-            <p className="truncate text-center text-[10px] text-white">
-              {item.label}
-            </p>
+            <p className="truncate text-center text-[10px] text-white">{item.label}</p>
           </div>
         )}
       </div>
@@ -273,24 +408,17 @@ function ItemCard({ item, isOverlay }: { item: Item; isOverlay?: boolean }) {
 
   if (item.type === "video") {
     return (
-      <div
-        className={`${base} flex flex-col items-center justify-center gap-1 bg-zinc-800/80`}
-      >
+      <div className={`${base} flex flex-col items-center justify-center gap-1 bg-zinc-800/80`}>
         <Video className="h-6 w-6 text-purple-400" />
         {item.label && (
-          <p className="line-clamp-2 px-1 text-center text-[10px] text-zinc-300">
-            {item.label}
-          </p>
+          <p className="line-clamp-2 px-1 text-center text-[10px] text-zinc-300">{item.label}</p>
         )}
       </div>
     );
   }
 
-  // Text
   return (
-    <div
-      className={`${base} flex items-center justify-center bg-zinc-800/80 p-2`}
-    >
+    <div className={`${base} flex items-center justify-center bg-zinc-800/80 p-2`}>
       <p className="line-clamp-4 text-center text-[11px] font-medium leading-tight text-white">
         {item.label || <Type className="h-4 w-4 text-zinc-500" />}
       </p>

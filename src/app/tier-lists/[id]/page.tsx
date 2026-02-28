@@ -53,6 +53,7 @@ export default async function TierListPage({
         </div>
 
         <TierBoard
+          tierListId={list.id}
           tiers={list.tiers}
           items={list.items.map((item) => ({
             id: item.id,
