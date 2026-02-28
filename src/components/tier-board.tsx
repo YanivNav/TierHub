@@ -18,6 +18,7 @@ import {
   Link,
   Check,
   Play,
+  RotateCcw,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import {
@@ -168,10 +169,33 @@ export default function TierBoard({
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function handleClearRanking() {
+    const newPositions: Record<string, string | null> = {};
+    const newRanks: Record<string, number> = {};
+    items.forEach((item, i) => {
+      newPositions[item.id] = null;
+      newRanks[item.id] = i;
+    });
+    setPositions(newPositions);
+    setRanks(newRanks);
+    if (isOwner) {
+      items.forEach((item, i) => {
+        updateItemTier.mutate({ id: item.id, tierId: null, rank: i });
+      });
+    }
+  }
+
   return (
     <div className="space-y-4">
-      {/* Share button */}
-      <div className="flex justify-end">
+      {/* Action bar */}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={handleClearRanking}
+          className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-500 hover:text-white"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          Clear ranking
+        </button>
         <button
           onClick={handleCopyLink}
           className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-500 hover:text-white"
