@@ -60,6 +60,7 @@ export default async function TierListPage({
             type: item.type,
             label: item.label,
             tierId: item.tierId ?? null,
+            rank: item.rank ?? 0,
             imageUrl: item.imageUrl ?? null,
             videoUrl: item.videoUrl ?? null,
           }))}

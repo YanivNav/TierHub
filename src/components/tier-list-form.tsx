@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Type, Video, X } from "lucide-react";
+import { Upload, Type, Video, X, Youtube } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import TierEditor, { type PendingTier } from "@/components/tier-editor";
+import { getYouTubeVideoId, getYouTubeThumbnail } from "@/lib/youtube";
 
 type ItemType = "text" | "image" | "video";
 
@@ -35,6 +36,9 @@ type PendingItem = {
   type: ItemType;
   label: string;
   file?: File;
+  /** For YouTube or other pre-existing video URLs — no file upload needed */
+  videoUrl?: string;
+  /** Thumbnail shown in the list (blob URL for images, YouTube thumbnail for YT videos) */
   previewUrl?: string;
   labelDirty: boolean;
 };
@@ -64,14 +68,28 @@ export default function TierListForm({
   const [isPublic, setIsPublic] = useState(initialIsPublic);
 
   const [pendingItems, setPendingItems] = useState<PendingItem[]>(() =>
-    initialItems.map((item) => ({
-      localId: item.id,
-      dbId: item.id,
-      type: item.type,
-      label: item.label,
-      previewUrl: item.imageUrl ?? item.videoUrl ?? undefined,
-      labelDirty: false,
-    }))
+    initialItems.map((item) => {
+      if (item.type === "video" && item.videoUrl) {
+        const videoId = getYouTubeVideoId(item.videoUrl);
+        return {
+          localId: item.id,
+          dbId: item.id,
+          type: "video" as const,
+          label: item.label,
+          videoUrl: item.videoUrl,
+          previewUrl: videoId ? getYouTubeThumbnail(videoId) : undefined,
+          labelDirty: false,
+        };
+      }
+      return {
+        localId: item.id,
+        dbId: item.id,
+        type: item.type,
+        label: item.label,
+        previewUrl: item.imageUrl ?? undefined,
+        labelDirty: false,
+      };
+    })
   );
 
   const [pendingTiers, setPendingTiers] = useState<PendingTier[]>(() =>
@@ -81,6 +99,8 @@ export default function TierListForm({
   );
 
   const [isDragging, setIsDragging] = useState(false);
+  const [youtubeInput, setYoutubeInput] = useState("");
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -102,15 +122,57 @@ export default function TierListForm({
   // ── Item handlers ──────────────────────────────────────────────────────────
 
   const addFiles = useCallback((files: FileList | File[]) => {
-    const newItems: PendingItem[] = Array.from(files).map((file) => ({
-      localId: crypto.randomUUID(),
-      type: file.type.startsWith("video/") ? "video" : "image",
-      label: "",
-      file,
-      previewUrl: URL.createObjectURL(file),
-      labelDirty: false,
-    }));
-    setPendingItems((prev) => [...prev, ...newItems]);
+    const processFile = async (file: File) => {
+      const isVideo = file.type.startsWith("video/");
+      const localId = crypto.randomUUID();
+      const baseItem: PendingItem = {
+        localId,
+        type: isVideo ? "video" : "image",
+        label: "",
+        file,
+        labelDirty: false,
+      };
+
+      if (isVideo) {
+        // Generate video thumbnail from first frame
+        const video = document.createElement("video");
+        video.src = URL.createObjectURL(file);
+        video.addEventListener(
+          "loadedmetadata",
+          () => {
+            video.currentTime = 0;
+          },
+          { once: true }
+        );
+        video.addEventListener(
+          "seeked",
+          () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d");
+            ctx?.drawImage(video, 0, 0);
+            setPendingItems((prev) =>
+              prev.map((item) =>
+                item.localId === localId ? { ...item, previewUrl: canvas.toDataURL() } : item
+              )
+            );
+            URL.revokeObjectURL(video.src);
+          },
+          { once: true }
+        );
+      } else {
+        baseItem.previewUrl = URL.createObjectURL(file);
+      }
+
+      return baseItem;
+    };
+
+    Array.from(files).forEach((file) => {
+      processFile(file).then((item) => {
+        setPendingItems((prev) => [...prev, item]);
+      });
+    });
   }, []);
 
   const addTextItem = () =>
@@ -119,10 +181,31 @@ export default function TierListForm({
       { localId: crypto.randomUUID(), type: "text", label: "", labelDirty: false },
     ]);
 
+  const handleAddYouTube = () => {
+    const url = youtubeInput.trim();
+    if (!url) return;
+    const videoId = getYouTubeVideoId(url);
+    if (!videoId) { setYoutubeError("Not a valid YouTube URL"); return; }
+    setYoutubeError(null);
+    setYoutubeInput("");
+    setPendingItems((prev) => [
+      ...prev,
+      {
+        localId: crypto.randomUUID(),
+        type: "video",
+        label: "",
+        videoUrl: url,
+        previewUrl: getYouTubeThumbnail(videoId),
+        labelDirty: false,
+      },
+    ]);
+  };
+
   const removeItem = (localId: string) =>
     setPendingItems((prev) => {
       const item = prev.find((i) => i.localId === localId);
-      if (item?.previewUrl && !item.dbId) URL.revokeObjectURL(item.previewUrl);
+      // Only revoke blob URLs created for image file previews
+      if (item?.previewUrl && !item.dbId && !item.videoUrl) URL.revokeObjectURL(item.previewUrl);
       return prev.filter((i) => i.localId !== localId);
     });
 
@@ -267,6 +350,10 @@ export default function TierListForm({
         if (item.type === "text") {
           return { label: item.label || "Untitled", type: "text" as const };
         }
+        // Pre-existing URL (YouTube etc.) — skip upload
+        if (item.videoUrl && !item.file) {
+          return { label: item.label || "Video", type: "video" as const, videoUrl: item.videoUrl, imageUrl: item.previewUrl };
+        }
         const { uploadUrl, publicUrl } = await getUploadUrl.mutateAsync({
           tierListId: listId,
           filename: item.file!.name,
@@ -277,10 +364,39 @@ export default function TierListForm({
           body: item.file,
           headers: { "Content-Type": item.file!.type },
         });
+
+        // For videos, also upload the thumbnail if it exists
+        let thumbnailUrl: string | undefined;
+        if (item.type === "video" && item.previewUrl) {
+          try {
+            // Convert data URL to blob
+            const response = await fetch(item.previewUrl);
+            const blob = await response.blob();
+
+            // Upload thumbnail
+            const thumbnailFilename = `${item.file!.name.split('.')[0]}-thumb.jpg`;
+            const { uploadUrl: thumbUploadUrl, publicUrl: thumbPublicUrl } = await getUploadUrl.mutateAsync({
+              tierListId: listId,
+              filename: thumbnailFilename,
+              contentType: "image/jpeg",
+            });
+
+            await fetch(thumbUploadUrl, {
+              method: "PUT",
+              body: blob,
+              headers: { "Content-Type": "image/jpeg" },
+            });
+
+            thumbnailUrl = thumbPublicUrl;
+          } catch (e) {
+            console.error("Failed to upload video thumbnail:", e);
+          }
+        }
+
         return {
           label: item.label || item.file!.name,
           type: item.type,
-          imageUrl: item.type === "image" ? publicUrl : undefined,
+          imageUrl: item.type === "image" ? publicUrl : (item.type === "video" ? thumbnailUrl : undefined),
           videoUrl: item.type === "video" ? publicUrl : undefined,
         };
       })
@@ -390,17 +506,44 @@ export default function TierListForm({
           />
         </div>
 
+        {/* YouTube URL input */}
+        <div className="space-y-1.5">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Youtube className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500" />
+              <input
+                value={youtubeInput}
+                onChange={(e) => { setYoutubeInput(e.target.value); setYoutubeError(null); }}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddYouTube())}
+                placeholder="Paste a YouTube URL…"
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 py-2 pl-9 pr-3 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-zinc-500"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAddYouTube}
+              className="shrink-0 border-zinc-700 text-zinc-300 hover:text-white"
+            >
+              Add
+            </Button>
+          </div>
+          {youtubeError && <p className="text-xs text-red-400">{youtubeError}</p>}
+        </div>
+
         {/* Items list */}
         {pendingItems.length > 0 && (
           <div className="divide-y divide-zinc-700/50 overflow-hidden rounded-xl border border-zinc-700/50 bg-zinc-800/30">
             {pendingItems.map((item) => (
               <div key={item.localId} className="flex items-center gap-3 p-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-700">
-                  {item.type === "image" && item.previewUrl ? (
+                  {item.previewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
                   ) : item.type === "video" ? (
                     <Video className="h-5 w-5 text-purple-400" />
+                  ) : item.type === "image" ? (
+                    <div className="h-full w-full bg-gradient-to-br from-blue-500/30 to-blue-600/30" />
                   ) : (
                     <Type className="h-5 w-5 text-blue-400" />
                   )}
