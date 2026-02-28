@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragEndEvent,
@@ -19,6 +20,8 @@ import {
   Check,
   Play,
   RotateCcw,
+  GitFork,
+  Copy,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import {
@@ -66,6 +69,10 @@ export default function TierBoard({
   );
   const [activeId, setActiveId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const router = useRouter();
+  const duplicateMutation = trpc.tierList.duplicate.useMutation({
+    onSuccess: ({ id }) => router.push(`/dashboard/${id}`),
+  });
   const [previewVideoId, setPreviewVideoId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{
     tierId: string | null;
@@ -196,10 +203,28 @@ export default function TierBoard({
           <RotateCcw className="h-3.5 w-3.5" />
           Clear ranking
         </button>
-        <button
-          onClick={handleCopyLink}
-          className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-500 hover:text-white"
-        >
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => duplicateMutation.mutate({ id: tierListId })}
+            disabled={duplicateMutation.isPending}
+            className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-500 hover:text-white disabled:opacity-50"
+          >
+            {isOwner ? (
+              <>
+                <Copy className="h-3.5 w-3.5" />
+                Duplicate
+              </>
+            ) : (
+              <>
+                <GitFork className="h-3.5 w-3.5" />
+                Remix
+              </>
+            )}
+          </button>
+          <button
+            onClick={handleCopyLink}
+            className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-500 hover:text-white"
+          >
           {copied ? (
             <>
               <Check className="h-3.5 w-3.5 text-green-400" />
@@ -211,7 +236,8 @@ export default function TierBoard({
               Share
             </>
           )}
-        </button>
+          </button>
+        </div>
       </div>
 
       <DndContext

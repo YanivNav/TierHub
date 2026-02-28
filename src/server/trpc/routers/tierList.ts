@@ -84,4 +84,56 @@ export const tierListRouter = createTRPCRouter({
         .delete(tierLists)
         .where(and(eq(tierLists.id, input.id), eq(tierLists.userId, ctx.userId)));
     }),
+
+  duplicate: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Load source list with tiers and items
+      const source = await ctx.db.query.tierLists.findFirst({
+        where: eq(tierLists.id, input.id),
+        with: {
+          tiers: { orderBy: asc(tiers.rank) },
+          items: { orderBy: asc(items.rank) },
+        },
+      });
+      if (!source) throw new Error("Not found");
+
+      // Create new tier list owned by the current user
+      const [newList] = await ctx.db
+        .insert(tierLists)
+        .values({
+          userId: ctx.userId,
+          title: source.title,
+          description: source.description ?? undefined,
+          isPublic: false,
+        })
+        .returning();
+
+      // Insert tiers and build old→new ID map
+      const tierIdMap = new Map<string, string>();
+      for (const tier of source.tiers) {
+        const [newTier] = await ctx.db
+          .insert(tiers)
+          .values({ tierListId: newList!.id, label: tier.label, color: tier.color, rank: tier.rank })
+          .returning();
+        tierIdMap.set(tier.id, newTier!.id);
+      }
+
+      // Insert items with remapped tier IDs
+      if (source.items.length > 0) {
+        await ctx.db.insert(items).values(
+          source.items.map((item) => ({
+            tierListId: newList!.id,
+            tierId: item.tierId ? (tierIdMap.get(item.tierId) ?? null) : null,
+            label: item.label,
+            type: item.type,
+            imageUrl: item.imageUrl ?? undefined,
+            videoUrl: item.videoUrl ?? undefined,
+            rank: item.rank,
+          }))
+        );
+      }
+
+      return { id: newList!.id };
+    }),
 });
