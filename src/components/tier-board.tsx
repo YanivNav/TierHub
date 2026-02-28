@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -17,10 +17,6 @@ import {
   Type,
   Link,
   Check,
-  ChevronUp,
-  ChevronDown,
-  Trash2,
-  Plus,
   Play,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
@@ -61,7 +57,6 @@ export default function TierBoard({
   items: Item[];
   isOwner: boolean;
 }) {
-  const [localTiers, setLocalTiers] = useState<Tier[]>(initialTiers);
   const [positions, setPositions] = useState<Record<string, string | null>>(
     () => Object.fromEntries(items.map((item) => [item.id, item.tierId]))
   );
@@ -77,10 +72,6 @@ export default function TierBoard({
   } | null>(null);
 
   const updateItemTier = trpc.item.updateTier.useMutation();
-  const createTier = trpc.tier.create.useMutation();
-  const updateTier = trpc.tier.update.useMutation();
-  const deleteTier = trpc.tier.delete.useMutation();
-  const reorderTiers = trpc.tier.reorder.useMutation();
 
   const activeItem = activeId ? items.find((i) => i.id === activeId) : null;
 
@@ -99,7 +90,7 @@ export default function TierBoard({
    *  it would be inserted (tierId + index into the filtered list without the
    *  dragged item itself). Used by both onDragOver and onDragEnd. */
   function computeDropTarget(itemId: string, overId: string) {
-    const tierIds = new Set(localTiers.map((t) => t.id));
+    const tierIds = new Set(initialTiers.map((t) => t.id));
     let newTierId: string | null;
     let overItemId: string | null = null;
 
@@ -177,47 +168,6 @@ export default function TierBoard({
     setTimeout(() => setCopied(false), 2000);
   }
 
-  function handleAddTier() {
-    createTier.mutate(
-      { tierListId, label: "New", color: "#6b7280" },
-      { onSuccess: (created) => setLocalTiers((prev) => [...prev, created]) }
-    );
-  }
-
-  function handleUpdateTier(id: string, data: { label?: string; color?: string }) {
-    setLocalTiers((prev) => prev.map((t) => (t.id === id ? { ...t, ...data } : t)));
-    updateTier.mutate({ id, ...data });
-  }
-
-  function handleDeleteTier(id: string) {
-    setLocalTiers((prev) => prev.filter((t) => t.id !== id));
-    setPositions((prev) => {
-      const next = { ...prev };
-      for (const itemId in next) {
-        if (next[itemId] === id) next[itemId] = null;
-      }
-      return next;
-    });
-    deleteTier.mutate({ id });
-  }
-
-  function handleMoveTier(id: string, direction: "up" | "down") {
-    const idx = localTiers.findIndex((t) => t.id === id);
-    if (direction === "up" && idx === 0) return;
-    if (direction === "down" && idx === localTiers.length - 1) return;
-
-    const next = [...localTiers];
-    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    [next[idx], next[swapIdx]] = [next[swapIdx]!, next[idx]!];
-
-    const reordered = next.map((t, i) => ({ ...t, rank: i }));
-    setLocalTiers(reordered);
-    reorderTiers.mutate({
-      tierListId,
-      tiers: reordered.map((t) => ({ id: t.id, rank: t.rank })),
-    });
-  }
-
   return (
     <div className="space-y-4">
       {/* Share button */}
@@ -247,36 +197,18 @@ export default function TierBoard({
         collisionDetection={pointerWithin}
       >
         <div className="overflow-hidden rounded-xl border border-zinc-800">
-          {localTiers.map((tier, i) => (
+          {initialTiers.map((tier, i) => (
             <TierRow
               key={tier.id}
               tier={tier}
               items={getItemsInTier(tier.id)}
-              isFirst={i === 0}
-              isLast={i === localTiers.length - 1}
+              isLast={i === initialTiers.length - 1}
               isDragging={!!activeId}
               activeId={activeId}
               dropTarget={dropTarget}
-              isOwner={isOwner}
-              onUpdateTier={handleUpdateTier}
-              onDeleteTier={handleDeleteTier}
-              onMoveUp={() => handleMoveTier(tier.id, "up")}
-              onMoveDown={() => handleMoveTier(tier.id, "down")}
               onPlayClick={setPreviewVideoId}
             />
           ))}
-
-          {isOwner && (
-            <button
-              type="button"
-              onClick={handleAddTier}
-              disabled={createTier.isPending}
-              className="flex w-full items-center justify-center gap-2 py-2.5 text-sm text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300 disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" />
-              Add tier
-            </button>
-          )}
         </div>
 
         <UnrankedPool
@@ -308,126 +240,31 @@ export default function TierBoard({
 function TierRow({
   tier,
   items,
-  isFirst,
   isLast,
   isDragging,
   activeId,
   dropTarget,
-  isOwner,
-  onUpdateTier,
-  onDeleteTier,
-  onMoveUp,
-  onMoveDown,
   onPlayClick,
 }: {
   tier: Tier;
   items: Item[];
-  isFirst: boolean;
   isLast: boolean;
   isDragging: boolean;
   activeId: string | null;
   dropTarget: { tierId: string | null; insertIndex: number } | null;
-  isOwner: boolean;
-  onUpdateTier: (id: string, data: { label?: string; color?: string }) => void;
-  onDeleteTier: (id: string) => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
   onPlayClick?: (itemId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: tier.id });
-  const [label, setLabel] = useState(tier.label);
-  const [color, setColor] = useState(tier.color);
-  const colorRef = useRef<HTMLInputElement>(null);
-  const colorDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  useEffect(() => {
-    setLabel(tier.label);
-    setColor(tier.color);
-  }, [tier.label, tier.color]);
-
-  useEffect(() => () => clearTimeout(colorDebounce.current), []);
-
-  function handleLabelBlur() {
-    const trimmed = label.trim();
-    if (!trimmed) { setLabel(tier.label); return; }
-    if (trimmed !== tier.label) onUpdateTier(tier.id, { label: trimmed });
-  }
-
-  function handleColorChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const c = e.target.value;
-    setColor(c);
-    clearTimeout(colorDebounce.current);
-    colorDebounce.current = setTimeout(() => onUpdateTier(tier.id, { color: c }), 600);
-  }
-
-  // All rows have a bottom border except the very last when not in owner mode
-  // (in owner mode the "Add tier" button follows, so last row still needs a border)
-  const showBorder = !isLast || isOwner;
 
   return (
-    <div className={`flex min-h-[5.5rem] ${showBorder ? "border-b border-zinc-800" : ""}`}>
+    <div className={`flex min-h-[5.5rem] ${!isLast ? "border-b border-zinc-800" : ""}`}>
       {/* Label cell */}
-      {isOwner ? (
-        <div
-          className="flex w-24 shrink-0 flex-col items-center justify-center gap-1 py-2 sm:w-28"
-          style={{ backgroundColor: color + "22", borderRight: `3px solid ${color}` }}
-        >
-          <button
-            type="button"
-            onClick={() => colorRef.current?.click()}
-            title="Change color"
-            className="h-3 w-3 rounded-full border border-white/20 transition-transform hover:scale-125"
-            style={{ backgroundColor: color }}
-          />
-          <input ref={colorRef} type="color" value={color} onChange={handleColorChange} className="sr-only" />
-
-          <input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            onBlur={handleLabelBlur}
-            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-            maxLength={10}
-            className="w-14 bg-transparent text-center text-xl font-black outline-none"
-            style={{ color }}
-          />
-
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={onMoveUp}
-              disabled={isFirst}
-              title="Move up"
-              className="rounded p-0.5 text-zinc-500 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-20"
-            >
-              <ChevronUp className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              onClick={onMoveDown}
-              disabled={isLast}
-              title="Move down"
-              className="rounded p-0.5 text-zinc-500 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-20"
-            >
-              <ChevronDown className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              onClick={() => onDeleteTier(tier.id)}
-              title="Delete tier"
-              className="rounded p-0.5 text-zinc-600 hover:bg-red-500/20 hover:text-red-400"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div
-          className="flex w-16 shrink-0 items-center justify-center text-xl font-black sm:w-20"
-          style={{ backgroundColor: tier.color + "22", borderRight: `3px solid ${tier.color}` }}
-        >
-          <span style={{ color: tier.color }}>{tier.label}</span>
-        </div>
-      )}
+      <div
+        className="flex w-16 shrink-0 items-center justify-center text-xl font-black sm:w-20"
+        style={{ backgroundColor: tier.color + "22", borderRight: `3px solid ${tier.color}` }}
+      >
+        <span style={{ color: tier.color }}>{tier.label}</span>
+      </div>
 
       {/* Drop zone */}
       <div
