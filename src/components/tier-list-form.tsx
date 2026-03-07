@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Type, Video, X, Youtube } from "lucide-react";
+import { Upload, Type, Video, X, Youtube, Sparkles, Plus } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,8 @@ type PendingItem = {
   file?: File;
   /** For YouTube or other pre-existing video URLs — no file upload needed */
   videoUrl?: string;
+  /** For AI-provided or other external image URLs — no file upload needed */
+  imageUrl?: string;
   /** Thumbnail shown in the list (blob URL for images, YouTube thumbnail for YT videos) */
   previewUrl?: string;
   labelDirty: boolean;
@@ -115,6 +117,9 @@ export default function TierListForm({
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiError, setAiError] = useState<string | null>(null);
+
   // Item mutations
   const createTierList = trpc.tierList.create.useMutation();
   const updateTierList = trpc.tierList.update.useMutation();
@@ -122,6 +127,9 @@ export default function TierListForm({
   const createManyItems = trpc.item.createMany.useMutation();
   const updateItem = trpc.item.update.useMutation();
   const deleteItem = trpc.item.delete.useMutation();
+
+  // AI
+  const generateItems = trpc.ai.generateItems.useMutation();
 
   // Tier mutations (edit mode only)
   const createTier = trpc.tier.create.useMutation();
@@ -264,6 +272,40 @@ export default function TierListForm({
       return next;
     });
 
+  // ── AI handlers ────────────────────────────────────────────────────────────
+
+  const handleAiGenerate = async (mode: "replace" | "add") => {
+    const prompt = aiPrompt.trim() || undefined;
+    if (!prompt && !title.trim()) return;
+    setAiError(null);
+    try {
+      const existingItems =
+        mode === "add" ? pendingItems.map((i) => i.label || i.type) : undefined;
+      const aiItems = await generateItems.mutateAsync({
+        prompt,
+        title: title.trim() || undefined,
+        description: description.trim() || undefined,
+        existingItems,
+      });
+      const newItems: PendingItem[] = aiItems.map((item) => ({
+        localId: crypto.randomUUID(),
+        type: item.type,
+        label: item.name,
+        imageUrl: item.imageUrl,
+        videoUrl: item.youtubeUrl,
+        previewUrl: item.imageUrl ?? item.previewUrl,
+        labelDirty: false,
+      }));
+      if (mode === "replace") {
+        setPendingItems(newItems);
+      } else {
+        setPendingItems((prev) => [...prev, ...newItems]);
+      }
+    } catch {
+      setAiError("Couldn't generate items. Please try again later.");
+    }
+  };
+
   // ── Submit ─────────────────────────────────────────────────────────────────
 
   const handleSubmit = async (e: React.SubmitEvent) => {
@@ -380,6 +422,10 @@ export default function TierListForm({
         if (item.videoUrl && !item.file) {
           return { label: item.label || "Video", type: "video" as const, videoUrl: item.videoUrl, imageUrl: item.previewUrl };
         }
+        // External image URL (e.g. AI-provided Wikipedia image) — skip upload
+        if (item.imageUrl && !item.file) {
+          return { label: item.label || "Image", type: "image" as const, imageUrl: item.imageUrl };
+        }
         const { uploadUrl, publicUrl } = await getUploadUrl.mutateAsync({
           tierListId: listId,
           filename: item.file!.name,
@@ -483,6 +529,48 @@ export default function TierListForm({
           onMove={handleMoveTier}
         />
       </div>
+      <Separator className="bg-zinc-800" />
+
+      {/* AI item generation */}
+      <div className="space-y-3 rounded-xl border border-zinc-700/50 bg-zinc-800/30 p-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-violet-400" />
+          <Label className="text-violet-300">Generate items with AI</Label>
+        </div>
+        <div className="flex gap-2">
+          <input
+            value={aiPrompt}
+            onChange={(e) => { setAiPrompt(e.target.value); setAiError(null); }}
+            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAiGenerate("replace"))}
+            placeholder='e.g. "Best Pixar movies" or "Programming languages"'
+            className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-zinc-500"
+            disabled={generateItems.isPending}
+          />
+          <Button
+            type="button"
+            onClick={() => handleAiGenerate("replace")}
+            disabled={!aiPrompt.trim() || generateItems.isPending}
+            className="shrink-0 bg-violet-600 hover:bg-violet-500 text-white"
+          >
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+            {generateItems.isPending ? "Generating…" : "Generate"}
+          </Button>
+          {pendingItems.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleAiGenerate("add")}
+              disabled={(!aiPrompt.trim() && !title.trim()) || generateItems.isPending}
+              className="shrink-0 border-zinc-600 text-zinc-300 hover:text-white"
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Add more
+            </Button>
+          )}
+        </div>
+        {aiError && <p className="text-xs text-red-400">{aiError}</p>}
+      </div>
+
       <Separator className="bg-zinc-800" />
 
       {/* Items */}
