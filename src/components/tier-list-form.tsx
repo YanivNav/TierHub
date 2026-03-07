@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Type, Video, X, Youtube } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
@@ -92,10 +92,20 @@ export default function TierListForm({
     })
   );
 
+  const DEFAULT_TIERS: PendingTier[] = [
+    { localId: crypto.randomUUID(), label: "S", color: "#ef4444" },
+    { localId: crypto.randomUUID(), label: "A", color: "#f97316" },
+    { localId: crypto.randomUUID(), label: "B", color: "#eab308" },
+    { localId: crypto.randomUUID(), label: "C", color: "#22c55e" },
+    { localId: crypto.randomUUID(), label: "D", color: "#3b82f6" },
+  ];
+
   const [pendingTiers, setPendingTiers] = useState<PendingTier[]>(() =>
-    [...initialTiers]
-      .sort((a, b) => a.rank - b.rank)
-      .map((t) => ({ localId: t.id, dbId: t.id, label: t.label, color: t.color }))
+    mode === "create"
+      ? DEFAULT_TIERS
+      : [...initialTiers]
+          .sort((a, b) => a.rank - b.rank)
+          .map((t) => ({ localId: t.id, dbId: t.id, label: t.label, color: t.color }))
   );
 
   const [isDragging, setIsDragging] = useState(false);
@@ -256,7 +266,7 @@ export default function TierListForm({
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
     setIsSubmitting(true);
@@ -270,6 +280,22 @@ export default function TierListForm({
           isPublic,
         });
         if (!list) throw new Error("Failed to create tier list");
+
+        // Create tiers sequentially to preserve order
+        const createdTierIds: { id: string; rank: number }[] = [];
+        for (let i = 0; i < pendingTiers.length; i++) {
+          const tier = pendingTiers[i]!;
+          const created = await createTier.mutateAsync({
+            tierListId: list.id,
+            label: tier.label,
+            color: tier.color,
+          });
+          createdTierIds.push({ id: created.id, rank: i });
+        }
+        if (createdTierIds.length > 0) {
+          await reorderTiers.mutateAsync({ tierListId: list.id, tiers: createdTierIds });
+        }
+
         await uploadAndSaveItems(list.id, pendingItems);
         router.push("/dashboard");
       } else {
@@ -446,22 +472,18 @@ export default function TierListForm({
 
       <Separator className="bg-zinc-800" />
 
-      {/* Tier structure — edit mode only */}
-      {!isCreate && (
-        <>
-          <div className="space-y-3">
-            <Label>Tier Structure</Label>
-            <TierEditor
-              tiers={pendingTiers}
-              onAdd={handleAddTier}
-              onUpdate={handleUpdateTier}
-              onDelete={handleDeleteTier}
-              onMove={handleMoveTier}
-            />
-          </div>
-          <Separator className="bg-zinc-800" />
-        </>
-      )}
+      {/* Tier structure */}
+      <div className="space-y-3">
+        <Label>Tier Structure</Label>
+        <TierEditor
+          tiers={pendingTiers}
+          onAdd={handleAddTier}
+          onUpdate={handleUpdateTier}
+          onDelete={handleDeleteTier}
+          onMove={handleMoveTier}
+        />
+      </div>
+      <Separator className="bg-zinc-800" />
 
       {/* Items */}
       <div className="space-y-4">
@@ -543,7 +565,7 @@ export default function TierListForm({
                   ) : item.type === "video" ? (
                     <Video className="h-5 w-5 text-purple-400" />
                   ) : item.type === "image" ? (
-                    <div className="h-full w-full bg-gradient-to-br from-blue-500/30 to-blue-600/30" />
+                    <div className="h-full w-full bg-linear-to-br from-blue-500/30 to-blue-600/30" />
                   ) : (
                     <Type className="h-5 w-5 text-blue-400" />
                   )}

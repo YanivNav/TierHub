@@ -47,14 +47,6 @@ export const tierListRouter = createTRPCRouter({
         .insert(tierLists)
         .values({ ...input, userId: ctx.userId })
         .returning();
-      // Seed default tiers
-      await ctx.db.insert(tiers).values([
-        { tierListId: list!.id, label: "S", color: "#ef4444", rank: 0 },
-        { tierListId: list!.id, label: "A", color: "#f97316", rank: 1 },
-        { tierListId: list!.id, label: "B", color: "#eab308", rank: 2 },
-        { tierListId: list!.id, label: "C", color: "#22c55e", rank: 3 },
-        { tierListId: list!.id, label: "D", color: "#3b82f6", rank: 4 },
-      ]);
       return list;
     }),
 

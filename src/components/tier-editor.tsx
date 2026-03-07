@@ -107,7 +107,7 @@ function TierRow({
         onChange={(e) => setLabel(e.target.value)}
         onBlur={handleLabelBlur}
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-        maxLength={10}
+        maxLength={30}
         className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-zinc-500"
         style={{ color: tier.color }}
         placeholder="Tier name"

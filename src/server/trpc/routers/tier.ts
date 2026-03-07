@@ -11,7 +11,7 @@ export const tierRouter = createTRPCRouter({
     .input(
       z.object({
         tierListId: z.string().uuid(),
-        label: z.string().min(1).max(10),
+        label: z.string().min(1).max(30),
         color: colorSchema,
       })
     )
@@ -34,7 +34,7 @@ export const tierRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string().uuid(),
-        label: z.string().min(1).max(10).optional(),
+        label: z.string().min(1).max(30).optional(),
         color: colorSchema.optional(),
       })
     )
