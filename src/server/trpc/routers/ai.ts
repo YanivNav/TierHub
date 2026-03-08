@@ -47,7 +47,62 @@ async function searchYouTube(query: string): Promise<{ videoId: string; thumbnai
   }
 }
 
+const EnrichSchema = z.object({
+  type: z.enum(["text", "image", "video"]),
+  youtubeSearchQuery: z.string().nullable(),
+});
+
 export const aiRouter = createTRPCRouter({
+  enrichItem: protectedProcedure
+    .input(
+      z.object({
+        itemName: z.string().min(1),
+        title: z.string().optional(),
+        description: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const context = [
+        input.title ? `Tier list: "${input.title}"` : null,
+        input.description ? `Description: "${input.description}"` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const systemPrompt = `Given a tier list item and its context, determine the best media type:
+- "image" if the item has a well-known visual (movie poster, person photo, animal, brand logo, etc.)
+- "video" if the item is best represented by a video (theme song, music video, trailer, etc.). Provide a precise YouTube search query.
+- "text" if no media is appropriate.`;
+
+      const response = await client.chat.completions.parse({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `${context}\nItem: "${input.itemName}"` },
+        ],
+        response_format: zodResponseFormat(EnrichSchema, "enrich"),
+      });
+
+      const result = response.choices[0]?.message.parsed;
+      if (!result) return { type: "text" as const };
+
+      if (result.type === "image") {
+        const imageUrl = await fetchWikipediaImage(input.itemName);
+        return { type: "image" as const, imageUrl: imageUrl ?? undefined };
+      }
+      if (result.type === "video" && result.youtubeSearchQuery != null) {
+        const yt = await searchYouTube(result.youtubeSearchQuery);
+        if (yt) {
+          return {
+            type: "video" as const,
+            youtubeUrl: `https://www.youtube.com/watch?v=${yt.videoId}`,
+            previewUrl: yt.thumbnailUrl,
+          };
+        }
+      }
+      return { type: "text" as const };
+    }),
+
   generateItems: protectedProcedure
     .input(
       z.object({

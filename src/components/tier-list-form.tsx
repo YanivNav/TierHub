@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Type, Video, X, Youtube, Sparkles, Plus } from "lucide-react";
+import { Upload, Type, Video, X, Youtube, Sparkles, Wand2 } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,8 @@ type PendingItem = {
   /** Thumbnail shown in the list (blob URL for images, YouTube thumbnail for YT videos) */
   previewUrl?: string;
   labelDirty: boolean;
+  /** True when type/imageUrl/videoUrl was changed by enrichment on an existing (dbId) item */
+  enrichDirty?: boolean;
 };
 
 type Props = {
@@ -119,6 +121,7 @@ export default function TierListForm({
 
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
+  const [enrichingItems, setEnrichingItems] = useState<Set<string>>(new Set());
 
   // Item mutations
   const createTierList = trpc.tierList.create.useMutation();
@@ -130,6 +133,7 @@ export default function TierListForm({
 
   // AI
   const generateItems = trpc.ai.generateItems.useMutation();
+  const enrichItem = trpc.ai.enrichItem.useMutation();
 
   // Tier mutations (edit mode only)
   const createTier = trpc.tier.create.useMutation();
@@ -274,13 +278,12 @@ export default function TierListForm({
 
   // ── AI handlers ────────────────────────────────────────────────────────────
 
-  const handleAiGenerate = async (mode: "replace" | "add") => {
+  const handleAiGenerate = async () => {
     const prompt = aiPrompt.trim() || undefined;
     if (!prompt && !title.trim()) return;
     setAiError(null);
     try {
-      const existingItems =
-        mode === "add" ? pendingItems.map((i) => i.label || i.type) : undefined;
+      const existingItems = pendingItems.map((i) => i.label || i.type);
       const aiItems = await generateItems.mutateAsync({
         prompt,
         title: title.trim() || undefined,
@@ -296,13 +299,41 @@ export default function TierListForm({
         previewUrl: item.imageUrl ?? item.previewUrl,
         labelDirty: false,
       }));
-      if (mode === "replace") {
-        setPendingItems(newItems);
-      } else {
-        setPendingItems((prev) => [...prev, ...newItems]);
-      }
+      
+      setPendingItems((prev) => [...prev, ...newItems]);
     } catch {
       setAiError("Couldn't generate items. Please try again later.");
+    }
+  };
+
+  const handleEnrichItem = async (localId: string, label: string) => {
+    if (!label.trim()) return;
+    setEnrichingItems((prev) => new Set(prev).add(localId));
+    try {
+      const result = await enrichItem.mutateAsync({
+        itemName: label.trim(),
+        title: title.trim() || undefined,
+        description: description.trim() || undefined,
+      });
+      setPendingItems((prev) =>
+        prev.map((item) => {
+          if (item.localId !== localId) return item;
+          return {
+            ...item,
+            type: result.type,
+            imageUrl: result.imageUrl,
+            videoUrl: result.youtubeUrl,
+            previewUrl: result.imageUrl ?? result.previewUrl ?? item.previewUrl,
+            enrichDirty: item.dbId !== undefined ? true : item.enrichDirty,
+          };
+        })
+      );
+    } finally {
+      setEnrichingItems((prev) => {
+        const next = new Set(prev);
+        next.delete(localId);
+        return next;
+      });
     }
   };
 
@@ -392,11 +423,24 @@ export default function TierListForm({
           .map((orig) => orig.id);
         await Promise.all(removedItemIds.map((id) => deleteItem.mutateAsync({ id })));
 
-        // Update label-changed items
+        // Update existing items whose label or media changed
         await Promise.all(
           pendingItems
-            .filter((p) => p.dbId && p.labelDirty)
-            .map((p) => updateItem.mutateAsync({ id: p.dbId!, label: p.label }))
+            .filter((p) => p.dbId && (p.labelDirty || p.enrichDirty))
+            .map((p) => {
+              const patch: Parameters<typeof updateItem.mutateAsync>[0] = { id: p.dbId! };
+              if (p.labelDirty) {
+                patch.label = p.label;
+                patch.tierId = null; // unrank renamed items
+              }
+              if (p.enrichDirty) {
+                patch.type = p.type;
+                // For videos, imageUrl holds the thumbnail; for images, it holds the image URL
+                patch.imageUrl = p.type === "video" ? (p.previewUrl ?? null) : (p.imageUrl ?? null);
+                patch.videoUrl = p.type === "video" ? (p.videoUrl ?? null) : null;
+              }
+              return updateItem.mutateAsync(patch);
+            })
         );
 
         // Create new items
@@ -541,32 +585,20 @@ export default function TierListForm({
           <input
             value={aiPrompt}
             onChange={(e) => { setAiPrompt(e.target.value); setAiError(null); }}
-            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAiGenerate("replace"))}
+            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAiGenerate())}
             placeholder='e.g. "Best Pixar movies" or "Programming languages"'
             className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-zinc-500"
             disabled={generateItems.isPending}
           />
           <Button
             type="button"
-            onClick={() => handleAiGenerate("replace")}
-            disabled={!aiPrompt.trim() || generateItems.isPending}
+            onClick={() => handleAiGenerate()}
+            disabled={(!aiPrompt.trim() && !title.trim()) || generateItems.isPending}
             className="shrink-0 bg-violet-600 hover:bg-violet-500 text-white"
           >
             <Sparkles className="mr-1.5 h-3.5 w-3.5" />
             {generateItems.isPending ? "Generating…" : "Generate"}
           </Button>
-          {pendingItems.length > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleAiGenerate("add")}
-              disabled={(!aiPrompt.trim() && !title.trim()) || generateItems.isPending}
-              className="shrink-0 border-zinc-600 text-zinc-300 hover:text-white"
-            >
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              Add more
-            </Button>
-          )}
         </div>
         {aiError && <p className="text-xs text-red-400">{aiError}</p>}
       </div>
@@ -682,6 +714,16 @@ export default function TierListForm({
                 >
                   {item.type}
                 </span>
+
+                <button
+                  type="button"
+                  onClick={() => handleEnrichItem(item.localId, item.label)}
+                  disabled={!item.label.trim() || enrichingItems.has(item.localId)}
+                  title="Find media with AI"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-violet-700/40 hover:text-violet-300 disabled:opacity-40"
+                >
+                  <Wand2 className={`h-3.5 w-3.5 ${enrichingItems.has(item.localId) ? "animate-pulse text-violet-400" : ""}`} />
+                </button>
 
                 <button
                   type="button"

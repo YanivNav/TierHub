@@ -110,7 +110,16 @@ export const itemRouter = createTRPCRouter({
     }),
 
   update: protectedProcedure
-    .input(z.object({ id: z.string().uuid(), label: z.string().min(1).max(200) }))
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        label: z.string().min(1).max(200).optional(),
+        type: z.enum(["text", "image", "video"]).optional(),
+        imageUrl: z.string().url().nullable().optional(),
+        videoUrl: z.string().url().nullable().optional(),
+        tierId: z.string().uuid().nullable().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const item = await ctx.db.query.items.findFirst({
         where: eq(items.id, input.id),
@@ -118,10 +127,11 @@ export const itemRouter = createTRPCRouter({
       });
       if (!item || item.tierList.userId !== ctx.userId)
         throw new TRPCError({ code: "UNAUTHORIZED" });
+      const { id, ...data } = input;
       const [updated] = await ctx.db
         .update(items)
-        .set({ label: input.label, updatedAt: new Date() })
-        .where(eq(items.id, input.id))
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(items.id, id))
         .returning();
       return updated;
     }),
