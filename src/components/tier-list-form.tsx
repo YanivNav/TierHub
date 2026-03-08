@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Type, Video, X, Youtube, Sparkles, Wand2 } from "lucide-react";
+import { Upload, Type, Video, X, Youtube, Sparkles, Wand2, Play } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import TierEditor, { type PendingTier } from "@/components/tier-editor";
-import { getYouTubeVideoId, getYouTubeThumbnail } from "@/lib/youtube";
+import { getYouTubeVideoId, getYouTubeThumbnail, getYouTubeEmbedUrl } from "@/lib/youtube";
 
 type ItemType = "text" | "image" | "video";
 
@@ -43,8 +44,8 @@ type PendingItem = {
   /** Thumbnail shown in the list (blob URL for images, YouTube thumbnail for YT videos) */
   previewUrl?: string;
   labelDirty: boolean;
-  /** True when type/imageUrl/videoUrl was changed by enrichment on an existing (dbId) item */
-  enrichDirty?: boolean;
+  /** True when type/imageUrl/videoUrl/file was changed on an existing (dbId) item */
+  mediaDirty?: boolean;
 };
 
 type Props = {
@@ -118,10 +119,15 @@ export default function TierListForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const perItemFileInputRef = useRef<HTMLInputElement>(null);
 
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
   const [enrichingItems, setEnrichingItems] = useState<Set<string>>(new Set());
+  const [previewVideoLocalId, setPreviewVideoLocalId] = useState<string | null>(null);
+  const [mediaDialogLocalId, setMediaDialogLocalId] = useState<string | null>(null);
+  const [itemYoutubeInput, setItemYoutubeInput] = useState("");
+  const [itemYoutubeError, setItemYoutubeError] = useState<string | null>(null);
 
   // Item mutations
   const createTierList = trpc.tierList.create.useMutation();
@@ -324,7 +330,7 @@ export default function TierListForm({
             imageUrl: result.imageUrl,
             videoUrl: result.youtubeUrl,
             previewUrl: result.imageUrl ?? result.previewUrl ?? item.previewUrl,
-            enrichDirty: item.dbId !== undefined ? true : item.enrichDirty,
+            mediaDirty: item.dbId !== undefined ? true : item.mediaDirty,
           };
         })
       );
@@ -337,9 +343,99 @@ export default function TierListForm({
     }
   };
 
+  // ── Per-item media handlers ────────────────────────────────────────────────
+
+  const applyItemFile = useCallback((localId: string, file: File) => {
+    const isVideo = file.type.startsWith("video/");
+    const type: ItemType = isVideo ? "video" : "image";
+    setPendingItems((prev) =>
+      prev.map((item) =>
+        item.localId !== localId
+          ? item
+          : {
+              ...item,
+              type,
+              file,
+              imageUrl: undefined,
+              videoUrl: undefined,
+              previewUrl: isVideo ? undefined : URL.createObjectURL(file),
+              mediaDirty: item.dbId !== undefined ? true : item.mediaDirty,
+            }
+      )
+    );
+    if (isVideo) {
+      const video = document.createElement("video");
+      video.src = URL.createObjectURL(file);
+      video.addEventListener("loadedmetadata", () => { video.currentTime = 0; }, { once: true });
+      video.addEventListener("seeked", () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext("2d")?.drawImage(video, 0, 0);
+        setPendingItems((prev) =>
+          prev.map((i) => i.localId === localId ? { ...i, previewUrl: canvas.toDataURL() } : i)
+        );
+        URL.revokeObjectURL(video.src);
+      }, { once: true });
+    }
+  }, []);
+
+  const handlePerItemFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && mediaDialogLocalId) {
+      applyItemFile(mediaDialogLocalId, file);
+      setMediaDialogLocalId(null);
+    }
+    e.target.value = "";
+  };
+
+  const handleItemYouTube = (localId: string) => {
+    const url = itemYoutubeInput.trim();
+    if (!url) return;
+    const videoId = getYouTubeVideoId(url);
+    if (!videoId) { setItemYoutubeError("Not a valid YouTube URL"); return; }
+    setPendingItems((prev) =>
+      prev.map((item) =>
+        item.localId !== localId
+          ? item
+          : {
+              ...item,
+              type: "video",
+              file: undefined,
+              videoUrl: url,
+              imageUrl: undefined,
+              previewUrl: getYouTubeThumbnail(videoId),
+              mediaDirty: item.dbId !== undefined ? true : item.mediaDirty,
+            }
+      )
+    );
+    setItemYoutubeInput("");
+    setItemYoutubeError(null);
+    setMediaDialogLocalId(null);
+  };
+
+  const handleRemoveItemMedia = (localId: string) => {
+    setPendingItems((prev) =>
+      prev.map((item) =>
+        item.localId !== localId
+          ? item
+          : {
+              ...item,
+              type: "text",
+              file: undefined,
+              videoUrl: undefined,
+              imageUrl: undefined,
+              previewUrl: undefined,
+              mediaDirty: item.dbId !== undefined ? true : item.mediaDirty,
+            }
+      )
+    );
+    setMediaDialogLocalId(null);
+  };
+
   // ── Submit ─────────────────────────────────────────────────────────────────
 
-  const handleSubmit = async (e: React.SubmitEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!title.trim()) return;
     setIsSubmitting(true);
@@ -426,18 +522,48 @@ export default function TierListForm({
         // Update existing items whose label or media changed
         await Promise.all(
           pendingItems
-            .filter((p) => p.dbId && (p.labelDirty || p.enrichDirty))
-            .map((p) => {
+            .filter((p) => p.dbId && (p.labelDirty || p.mediaDirty))
+            .map(async (p) => {
               const patch: Parameters<typeof updateItem.mutateAsync>[0] = { id: p.dbId! };
               if (p.labelDirty) {
                 patch.label = p.label;
                 patch.tierId = null; // unrank renamed items
               }
-              if (p.enrichDirty) {
-                patch.type = p.type;
-                // For videos, imageUrl holds the thumbnail; for images, it holds the image URL
-                patch.imageUrl = p.type === "video" ? (p.previewUrl ?? null) : (p.imageUrl ?? null);
-                patch.videoUrl = p.type === "video" ? (p.videoUrl ?? null) : null;
+              if (p.mediaDirty) {
+                if (p.file) {
+                  // New file attached to existing item — upload to S3 first
+                  const { uploadUrl, publicUrl } = await getUploadUrl.mutateAsync({
+                    tierListId: tierListId!,
+                    filename: p.file.name,
+                    contentType: p.file.type,
+                  });
+                  await fetch(uploadUrl, { method: "PUT", body: p.file, headers: { "Content-Type": p.file.type } });
+
+                  let thumbnailUrl: string | undefined;
+                  if (p.type === "video" && p.previewUrl) {
+                    try {
+                      const res = await fetch(p.previewUrl);
+                      const blob = await res.blob();
+                      const thumbName = `${p.file.name.split(".")[0]}-thumb.jpg`;
+                      const { uploadUrl: tUrl, publicUrl: tPublic } = await getUploadUrl.mutateAsync({
+                        tierListId: tierListId!,
+                        filename: thumbName,
+                        contentType: "image/jpeg",
+                      });
+                      await fetch(tUrl, { method: "PUT", body: blob, headers: { "Content-Type": "image/jpeg" } });
+                      thumbnailUrl = tPublic;
+                    } catch {}
+                  }
+
+                  patch.type = p.type;
+                  patch.imageUrl = p.type === "image" ? publicUrl : (p.type === "video" ? (thumbnailUrl ?? null) : null);
+                  patch.videoUrl = p.type === "video" ? publicUrl : null;
+                } else {
+                  // URL-only media change (AI enrich or manual YouTube/Wikipedia)
+                  patch.type = p.type;
+                  patch.imageUrl = p.type === "video" ? (p.previewUrl ?? null) : (p.imageUrl ?? null);
+                  patch.videoUrl = p.type === "video" ? (p.videoUrl ?? null) : null;
+                }
               }
               return updateItem.mutateAsync(patch);
             })
@@ -523,6 +649,7 @@ export default function TierListForm({
   const isCreate = mode === "create";
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Name */}
       <div className="space-y-2">
@@ -673,67 +800,88 @@ export default function TierListForm({
           {youtubeError && <p className="text-xs text-red-400">{youtubeError}</p>}
         </div>
 
+        {/* Hidden per-item file input */}
+        <input
+          ref={perItemFileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          className="hidden"
+          onChange={handlePerItemFileChange}
+        />
+
         {/* Items list */}
         {pendingItems.length > 0 && (
           <div className="divide-y divide-zinc-700/50 overflow-hidden rounded-xl border border-zinc-700/50 bg-zinc-800/30">
-            {pendingItems.map((item) => (
-              <div key={item.localId} className="flex items-center gap-3 p-3">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-700">
-                  {item.previewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
-                  ) : item.type === "video" ? (
-                    <Video className="h-5 w-5 text-purple-400" />
-                  ) : item.type === "image" ? (
-                    <div className="h-full w-full bg-linear-to-br from-blue-500/30 to-blue-600/30" />
-                  ) : (
-                    <Type className="h-5 w-5 text-blue-400" />
-                  )}
+            {pendingItems.map((item) => {
+              const isEnriching = enrichingItems.has(item.localId);
+              const hasVideo = item.type === "video" && (item.videoUrl ?? item.file);
+              return (
+                <div key={item.localId} className="flex flex-col">
+                  <div className="flex items-center gap-3 p-3">
+                    {/* Thumbnail / play button */}
+                    <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-700">
+                      {item.previewUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
+                      ) : item.type === "video" ? (
+                        <Video className="h-5 w-5 text-purple-400" />
+                      ) : item.type === "image" ? (
+                        <div className="h-full w-full bg-linear-to-br from-blue-500/30 to-blue-600/30" />
+                      ) : (
+                        <Type className="h-5 w-5 text-blue-400" />
+                      )}
+                      {hasVideo && (
+                        <button
+                          type="button"
+                          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                          onClick={(e) => { e.stopPropagation(); setPreviewVideoLocalId(item.localId); }}
+                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity"
+                          title="Watch video"
+                        >
+                          <Play className="h-5 w-5 text-white" fill="white" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Label */}
+                    <div className="min-w-0 flex-1">
+                      <input
+                        value={item.label}
+                        onChange={(e) => updateItemLabel(item.localId, e.target.value)}
+                        placeholder={item.type === "text" ? "Item label..." : "Label (optional)"}
+                        className="w-full bg-transparent text-sm font-medium text-white placeholder:text-zinc-500 outline-none"
+                      />
+                      {item.file && (
+                        <p className="mt-0.5 truncate text-xs text-zinc-500">{item.file.name}</p>
+                      )}
+                    </div>
+
+                    {/* Media button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMediaDialogLocalId(item.localId);
+                        setItemYoutubeInput("");
+                        setItemYoutubeError(null);
+                      }}
+                      title="Attach or replace media"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-white"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                    </button>
+
+                    {/* Remove item */}
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.localId)}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-white"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
-
-                <div className="min-w-0 flex-1">
-                  <input
-                    value={item.label}
-                    onChange={(e) => updateItemLabel(item.localId, e.target.value)}
-                    placeholder={item.type === "text" ? "Item label..." : "Label (optional)"}
-                    className="w-full bg-transparent text-sm font-medium text-white placeholder:text-zinc-500 outline-none"
-                  />
-                  {item.file && (
-                    <p className="mt-0.5 truncate text-xs text-zinc-500">{item.file.name}</p>
-                  )}
-                </div>
-
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-                    item.type === "image"
-                      ? "bg-blue-500/20 text-blue-300"
-                      : item.type === "video"
-                      ? "bg-purple-500/20 text-purple-300"
-                      : "bg-zinc-600/50 text-zinc-300"
-                  }`}
-                >
-                  {item.type}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() => handleEnrichItem(item.localId, item.label)}
-                  disabled={!item.label.trim() || enrichingItems.has(item.localId)}
-                  title="Find media with AI"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-violet-700/40 hover:text-violet-300 disabled:opacity-40"
-                >
-                  <Wand2 className={`h-3.5 w-3.5 ${enrichingItems.has(item.localId) ? "animate-pulse text-violet-400" : ""}`} />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => removeItem(item.localId)}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-white"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -763,5 +911,110 @@ export default function TierListForm({
         </Button>
       </div>
     </form>
+
+    {/* Edit media dialog */}
+    {(() => {
+      const item = pendingItems.find((i) => i.localId === mediaDialogLocalId);
+      const isEnriching = item ? enrichingItems.has(item.localId) : false;
+      return (
+        <Dialog open={!!mediaDialogLocalId} onOpenChange={(open) => { if (!open) { setMediaDialogLocalId(null); setItemYoutubeInput(""); setItemYoutubeError(null); } }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Edit media — {item?.label || "item"}</DialogTitle>
+            </DialogHeader>
+            {item && (
+              <div className="space-y-4 pt-1">
+                {/* Upload file */}
+                <button
+                  type="button"
+                  onClick={() => perItemFileInputRef.current?.click()}
+                  className="flex w-full items-center gap-2 rounded-lg border border-zinc-700 px-3 py-2.5 text-sm text-zinc-300 hover:border-zinc-500 hover:text-white transition-colors"
+                >
+                  <Upload className="h-4 w-4 shrink-0" />
+                  Upload file
+                </button>
+
+                {/* YouTube URL */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-2 focus-within:border-zinc-500">
+                    <Youtube className="h-4 w-4 shrink-0 text-red-500" />
+                    <input
+                      value={itemYoutubeInput}
+                      onChange={(e) => { setItemYoutubeInput(e.target.value); setItemYoutubeError(null); }}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleItemYouTube(item.localId))}
+                      placeholder="YouTube URL…"
+                      className="flex-1 bg-transparent text-sm text-white placeholder:text-zinc-500 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleItemYouTube(item.localId)}
+                      disabled={!itemYoutubeInput.trim()}
+                      className="text-sm text-blue-400 hover:text-blue-300 disabled:opacity-40"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {itemYoutubeError && <p className="text-xs text-red-400">{itemYoutubeError}</p>}
+                </div>
+
+                {/* AI enrich */}
+                <button
+                  type="button"
+                  onClick={() => { handleEnrichItem(item.localId, item.label); setMediaDialogLocalId(null); }}
+                  disabled={!item.label.trim() || isEnriching}
+                  className="flex w-full items-center gap-2 rounded-lg border border-violet-700/50 px-3 py-2.5 text-sm text-violet-300 hover:border-violet-500 hover:text-violet-200 disabled:opacity-40 transition-colors"
+                >
+                  <Wand2 className={`h-4 w-4 shrink-0 ${isEnriching ? "animate-pulse" : ""}`} />
+                  {isEnriching ? "Finding media…" : "Find media with AI"}
+                </button>
+
+                {/* Remove media */}
+                {item.type !== "text" && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveItemMedia(item.localId)}
+                    className="flex w-full items-center gap-2 rounded-lg border border-zinc-700 px-3 py-2.5 text-sm text-zinc-400 hover:border-red-700/50 hover:text-red-400 transition-colors"
+                  >
+                    <X className="h-4 w-4 shrink-0" />
+                    Remove media
+                  </button>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      );
+    })()}
+
+    {/* Video preview dialog */}
+    {(() => {
+      const item = pendingItems.find((i) => i.localId === previewVideoLocalId);
+      const videoUrl = item?.videoUrl ?? (item?.file ? URL.createObjectURL(item.file) : null);
+      const videoId = videoUrl ? getYouTubeVideoId(videoUrl) : null;
+      return (
+        <Dialog open={!!previewVideoLocalId} onOpenChange={(open) => !open && setPreviewVideoLocalId(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>{item?.label || "Video"}</DialogTitle>
+            </DialogHeader>
+            {videoId ? (
+              <div className="overflow-hidden rounded-lg bg-black">
+                <iframe
+                  width="100%"
+                  height="400"
+                  src={getYouTubeEmbedUrl(videoId)}
+                  title={item?.label || "Video"}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            ) : videoUrl ? (
+              <video src={videoUrl} controls className="w-full max-h-[400px] rounded-lg" />
+            ) : null}
+          </DialogContent>
+        </Dialog>
+      );
+    })()}
+    </>
   );
 }
