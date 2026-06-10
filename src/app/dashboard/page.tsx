@@ -19,7 +19,7 @@ export default async function DashboardPage() {
     .orderBy(desc(tierLists.createdAt));
 
   return (
-    <main className="min-h-screen bg-zinc-950 p-8 text-white">
+    <main className="flex-1 bg-zinc-950 p-8 text-white">
       <div className="mx-auto max-w-4xl">
         <div className="mb-8 flex items-center justify-between">
           <h1 className="text-3xl font-bold">My Tier Lists</h1>

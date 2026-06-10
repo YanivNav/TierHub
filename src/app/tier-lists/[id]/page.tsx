@@ -29,7 +29,7 @@ export default async function TierListPage({
   const isOwner = userId === list.userId;
 
   return (
-    <main className="min-h-screen bg-zinc-950 p-6 text-white">
+    <main className="flex-1 bg-zinc-950 p-6 text-white">
       <div className="mx-auto max-w-4xl">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
