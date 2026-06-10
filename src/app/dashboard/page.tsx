@@ -1,13 +1,14 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/server/db";
-import { tierLists } from "@/server/db/schema";
+import { items, tierLists } from "@/server/db/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import DeleteListButton from "@/components/delete-list-button";
+import TierCardThumbnail from "@/components/tier-card-thumbnail";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -18,6 +19,27 @@ export default async function DashboardPage() {
     .from(tierLists)
     .where(eq(tierLists.userId, userId))
     .orderBy(desc(tierLists.createdAt));
+
+  // Fetch item images for all lists in one query, then group — used to build a
+  // collage thumbnail at render time (no stored/generated thumbnail needed).
+  const listIds = lists.map((l) => l.id);
+  const imageRows = listIds.length
+    ? await db
+        .select({ tierListId: items.tierListId, imageUrl: items.imageUrl })
+        .from(items)
+        .where(and(inArray(items.tierListId, listIds), isNotNull(items.imageUrl)))
+        .orderBy(asc(items.rank), asc(items.createdAt))
+    : [];
+
+  const imagesByList = new Map<string, string[]>();
+  for (const row of imageRows) {
+    if (!row.imageUrl) continue;
+    const arr = imagesByList.get(row.tierListId) ?? [];
+    if (arr.length < 4) {
+      arr.push(row.imageUrl);
+      imagesByList.set(row.tierListId, arr);
+    }
+  }
 
   return (
     <main className="flex-1 bg-zinc-950 p-8 text-white">
@@ -41,8 +63,15 @@ export default async function DashboardPage() {
             {lists.map((list) => (
               <Card
                 key={list.id}
-                className="flex flex-col border-zinc-800 bg-zinc-900 text-white"
+                className="flex flex-col overflow-hidden border-zinc-800 bg-zinc-900 pt-0 text-white"
               >
+                <Link href={`/tier-lists/${list.id}`} className="block">
+                  <TierCardThumbnail
+                    coverImageUrl={list.coverImageUrl}
+                    images={imagesByList.get(list.id) ?? []}
+                    className="border-b border-zinc-800"
+                  />
+                </Link>
                 <CardHeader className="flex-1">
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <CardTitle className="text-base leading-snug">

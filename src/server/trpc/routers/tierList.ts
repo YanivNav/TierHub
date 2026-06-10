@@ -57,6 +57,7 @@ export const tierListRouter = createTRPCRouter({
         title: z.string().min(1).max(100).optional(),
         description: z.string().max(500).optional(),
         isPublic: z.boolean().optional(),
+        coverImageUrl: z.string().url().nullable().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

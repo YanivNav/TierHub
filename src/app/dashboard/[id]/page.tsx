@@ -45,6 +45,7 @@ export default async function EditTierListPage({
           initialTitle={list.title}
           initialDescription={list.description ?? ""}
           initialIsPublic={list.isPublic}
+          initialCoverImageUrl={list.coverImageUrl}
           initialTiers={list.tiers}
           initialItems={list.items.map((item) => ({
             id: item.id,

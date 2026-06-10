@@ -81,6 +81,7 @@ type Props = {
   initialTitle?: string;
   initialDescription?: string;
   initialIsPublic?: boolean;
+  initialCoverImageUrl?: string | null;
   initialItems?: ExistingItemData[];
   initialTiers?: InitialTierData[];
 };
@@ -91,6 +92,7 @@ export default function TierListForm({
   initialTitle = "",
   initialDescription = "",
   initialIsPublic = true,
+  initialCoverImageUrl = null,
   initialItems = [],
   initialTiers = [],
 }: Props) {
@@ -98,6 +100,13 @@ export default function TierListForm({
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
   const [isPublic, setIsPublic] = useState(initialIsPublic);
+
+  // Manual cover image (edit mode). `coverFile` is a freshly picked file pending
+  // upload; `coverPreview` is what to show (existing URL or local blob).
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(initialCoverImageUrl);
+  const [coverDirty, setCoverDirty] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [pendingItems, setPendingItems] = useState<PendingItem[]>(() =>
     initialItems.map((item) => {
@@ -492,6 +501,35 @@ export default function TierListForm({
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 
+  const handleCoverSelect = (file: File | null) => {
+    if (!file) return;
+    setCoverFile(file);
+    setCoverPreview(URL.createObjectURL(file));
+    setCoverDirty(true);
+  };
+
+  const handleCoverRemove = () => {
+    setCoverFile(null);
+    setCoverPreview(null);
+    setCoverDirty(true);
+    if (coverInputRef.current) coverInputRef.current.value = "";
+  };
+
+  /** Upload a cover image to R2 for the given list, returning its public URL. */
+  async function uploadCover(listId: string, file: File) {
+    const { uploadUrl, publicUrl } = await getUploadUrl.mutateAsync({
+      tierListId: listId,
+      filename: `cover-${file.name}`,
+      contentType: file.type,
+    });
+    await fetch(uploadUrl, {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": file.type },
+    });
+    return publicUrl;
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -523,15 +561,31 @@ export default function TierListForm({
         }
 
         await uploadAndSaveItems(list.id, pendingItems);
+
+        // Cover image — the list now exists, so we can upload and attach it.
+        if (coverFile) {
+          const coverImageUrl = await uploadCover(list.id, coverFile);
+          await updateTierList.mutateAsync({ id: list.id, coverImageUrl });
+        }
+
         setIsSubmitting(false);
         setSavedListId(list.id);
       } else {
+        // 0. Upload a newly-picked cover image (if any) before saving metadata.
+        let coverImageUrl: string | null | undefined;
+        if (coverDirty) {
+          coverImageUrl = coverFile
+            ? await uploadCover(tierListId!, coverFile)
+            : null; // cover was removed
+        }
+
         // 1. Update metadata
         await updateTierList.mutateAsync({
           id: tierListId!,
           title: title.trim(),
           description: description.trim() || undefined,
           isPublic,
+          coverImageUrl,
         });
 
         // 2. Tiers ────────────────────────────────────────────────────────────
@@ -742,6 +796,64 @@ export default function TierListForm({
           rows={2}
           className="resize-none border-zinc-700 bg-zinc-900"
         />
+      </div>
+
+      {/* Cover image — manual thumbnail (collage/icon fallback if empty) */}
+      <div className="space-y-2">
+        <Label>
+          Cover image <span className="text-zinc-500">(optional)</span>
+        </Label>
+        <p className="text-xs text-zinc-500">
+          Shown on the dashboard card. If left empty, a collage of item images
+          (or a default icon) is used.
+        </p>
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => handleCoverSelect(e.target.files?.[0] ?? null)}
+        />
+        <div className="flex items-center gap-3">
+          <div className="relative h-20 w-32 shrink-0 overflow-hidden rounded-md border border-zinc-700 bg-zinc-900">
+            {coverPreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={coverPreview}
+                alt="Cover preview"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-zinc-600">
+                <ImageOff className="h-5 w-5" />
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-zinc-700 text-zinc-300 hover:text-white"
+              onClick={() => coverInputRef.current?.click()}
+            >
+              <Upload className="mr-1 h-4 w-4" />
+              {coverPreview ? "Replace" : "Upload"}
+            </Button>
+            {coverPreview && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="text-zinc-400 hover:bg-red-500/10 hover:text-red-400"
+                onClick={handleCoverRemove}
+              >
+                <X className="mr-1 h-4 w-4" />
+                Remove
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Visibility */}
