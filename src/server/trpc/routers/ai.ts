@@ -7,6 +7,7 @@ const AiItemSchema = z.object({
   name: z.string(),
   type: z.enum(["text", "image", "video"]),
   youtubeSearchQuery: z.string().nullable(),
+  wikipediaSearchQuery: z.string().nullable(),
 });
 
 const ItemsSchema = z.object({
@@ -15,15 +16,34 @@ const ItemsSchema = z.object({
 
 const client = new OpenAI();
 
+const WIKIPEDIA_HEADERS = {
+  "User-Agent": "TierHub/1.0 (https://tierhub.app)",
+  "Api-User-Agent": "TierHub/1.0 (https://tierhub.app)",
+};
+
 async function fetchWikipediaImage(query: string): Promise<string | null> {
   try {
-    const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(query)}&prop=pageimages&format=json&pithumbsize=300`;
-    const res = await fetch(url);
-    const data = await res.json() as { query?: { pages?: Record<string, { thumbnail?: { source: string } }> } };
-    const pages = data?.query?.pages;
-    if (!pages) return null;
-    const page = Object.values(pages)[0];
-    return page?.thumbnail?.source ?? null;
+    // Search generator resolves non-English queries to the correct English article.
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=1&prop=pageimages&pithumbsize=300&format=json`;
+    const searchRes = await fetch(searchUrl, { cache: "no-store", headers: WIKIPEDIA_HEADERS });
+    const searchData = await searchRes.json() as { query?: { pages?: Record<string, { title?: string; thumbnail?: { source: string } }> } };
+    const page = Object.values(searchData?.query?.pages ?? {})[0];
+    if (!page) return null;
+
+    // pageimages only returns the designated lead image. Fall back to the REST
+    // summary API which finds article images not set as the page thumbnail.
+    if (page.thumbnail?.source) return page.thumbnail.source;
+
+    if (page.title) {
+      const summaryRes = await fetch(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(page.title)}`,
+        { cache: "no-store", headers: WIKIPEDIA_HEADERS }
+      );
+      const summaryData = await summaryRes.json() as { thumbnail?: { source: string } };
+      return summaryData?.thumbnail?.source ?? null;
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -50,7 +70,40 @@ async function searchYouTube(query: string): Promise<{ videoId: string; thumbnai
 const EnrichSchema = z.object({
   type: z.enum(["text", "image", "video"]),
   youtubeSearchQuery: z.string().nullable(),
+  wikipediaSearchQuery: z.string().nullable(),
 });
+
+type ResolvedMedia =
+  | { type: "text" }
+  | { type: "image"; imageUrl?: string }
+  | { type: "video"; youtubeUrl: string; previewUrl: string };
+
+async function resolveItemMedia(item: {
+  name: string;
+  type: "text" | "image" | "video";
+  youtubeSearchQuery: string | null;
+  wikipediaSearchQuery: string | null;
+}): Promise<ResolvedMedia> {
+  if (item.type === "image") {
+    // Prefer the LLM-provided disambiguating query; fall back to the raw name.
+    const imageUrl = await fetchWikipediaImage(item.wikipediaSearchQuery ?? item.name);
+    return { type: "image", imageUrl: imageUrl ?? undefined };
+  }
+  if (item.type === "video" && item.youtubeSearchQuery != null) {
+    const yt = await searchYouTube(item.youtubeSearchQuery);
+    if (yt) {
+      return {
+        type: "video",
+        youtubeUrl: `https://www.youtube.com/watch?v=${yt.videoId}`,
+        previewUrl: yt.thumbnailUrl,
+      };
+    }
+  }
+  return { type: "text" };
+}
+
+const IMAGE_QUERY_INSTRUCTION =
+  'For image items, provide a specific English Wikipedia search query in wikipediaSearchQuery that unambiguously identifies this item — include disambiguating context like nationality, role, or field (e.g. "Eli Cohen Israeli foreign minister Likud" not just "Eli Cohen"). For non-image items set wikipediaSearchQuery to null.';
 
 export const aiRouter = createTRPCRouter({
   enrichItem: protectedProcedure
@@ -72,7 +125,8 @@ export const aiRouter = createTRPCRouter({
       const systemPrompt = `Given a tier list item and its context, determine the best media type:
 - "image" if the item has a well-known visual (movie poster, person photo, animal, brand logo, etc.)
 - "video" if the item is best represented by a video (theme song, music video, trailer, etc.). Provide a precise YouTube search query.
-- "text" if no media is appropriate.`;
+- "text" if no media is appropriate.
+${IMAGE_QUERY_INSTRUCTION}`;
 
       const response = await client.chat.completions.parse({
         model: "gpt-4o",
@@ -86,21 +140,31 @@ export const aiRouter = createTRPCRouter({
       const result = response.choices[0]?.message.parsed;
       if (!result) return { type: "text" as const };
 
-      if (result.type === "image") {
-        const imageUrl = await fetchWikipediaImage(input.itemName);
-        return { type: "image" as const, imageUrl: imageUrl ?? undefined };
-      }
-      if (result.type === "video" && result.youtubeSearchQuery != null) {
-        const yt = await searchYouTube(result.youtubeSearchQuery);
-        if (yt) {
-          return {
-            type: "video" as const,
-            youtubeUrl: `https://www.youtube.com/watch?v=${yt.videoId}`,
-            previewUrl: yt.thumbnailUrl,
-          };
-        }
-      }
-      return { type: "text" as const };
+      return resolveItemMedia({
+        name: input.itemName,
+        type: result.type,
+        youtubeSearchQuery: result.youtubeSearchQuery,
+        wikipediaSearchQuery: result.wikipediaSearchQuery,
+      });
+    }),
+
+  // Phase 2 (lazy): resolve media for an already-classified item — no LLM call.
+  resolveMedia: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        type: z.enum(["text", "image", "video"]),
+        youtubeSearchQuery: z.string().nullable().optional(),
+        wikipediaSearchQuery: z.string().nullable().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      return resolveItemMedia({
+        name: input.name,
+        type: input.type,
+        youtubeSearchQuery: input.youtubeSearchQuery ?? null,
+        wikipediaSearchQuery: input.wikipediaSearchQuery ?? null,
+      });
     }),
 
   generateItems: protectedProcedure
@@ -127,14 +191,22 @@ export const aiRouter = createTRPCRouter({
 - "image" if the item has a well-known visual (movies, celebrities, animals, brands, etc.)
 - "video" if the item is best represented by a video (music videos, TV theme songs, trailers, etc.). For video items provide a precise YouTube search query in youtubeSearchQuery (e.g. "Queen Bohemian Rhapsody official music video").
 - "text" for everything else.
-Return only the item name — concise, no descriptions.`;
+${IMAGE_QUERY_INSTRUCTION}
+Return only the item name — concise, no descriptions.
+
+Decide how many items to return based on the topic:
+- If the topic has a well-defined, finite, and reasonably complete set (e.g. "all US presidents", "the main characters of a show", "the planets in the solar system", "every Zelda game"), return ALL of the items that belong to that set — be exhaustive, even if that is more than 15. Do not stop at an arbitrary number.
+- If the topic is open-ended, effectively infinite, or has no clear boundary (e.g. "best foods", "favorite songs", "good movies"), return the 10–15 best, most representative, or most popular items.`;
+
+      const countInstruction =
+        "Choose the count based on the topic: return the complete set if it is finite and well-defined, otherwise cap at 10–15 of the best/most representative items.";
 
       const userPrompt = hasExisting
-        ? `${context}\n\nExisting items: ${input.existingItems!.join(", ")}.\nSuggest 10–15 more distinct items that fit well alongside the existing ones but are not duplicates.`
-        : `${context}\n\nGenerate 10–15 items for this tier list. Return only item names, no explanations.`;
+        ? `${context}\n\nExisting items: ${input.existingItems!.join(", ")}.\nSuggest more distinct items that fit well alongside the existing ones but are not duplicates. ${countInstruction}`
+        : `${context}\n\nGenerate items for this tier list. Return only item names, no explanations. ${countInstruction}`;
 
       const response = await client.chat.completions.parse({
-        model: "gpt-4o",
+        model: "gpt-5.4",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -142,29 +214,16 @@ Return only the item name — concise, no descriptions.`;
         response_format: zodResponseFormat(ItemsSchema, "items_list"),
       });
 
+      // Phase 1: return names + classification only. Media URLs are fetched
+      // later, lazily, via `resolveMedia` — keeps generation fast and avoids
+      // spending YouTube quota on items the user may never use.
       const rawItems = response.choices[0]?.message.parsed?.items ?? [];
 
-      const enriched = await Promise.all(
-        rawItems.map(async (item) => {
-          if (item.type === "image") {
-            const imageUrl = await fetchWikipediaImage(item.name);
-            return { name: item.name, type: item.type, imageUrl: imageUrl ?? undefined };
-          }
-          if (item.type === "video" && item.youtubeSearchQuery != null) {
-            const yt = await searchYouTube(item.youtubeSearchQuery);
-            if (yt) {
-              return {
-                name: item.name,
-                type: item.type,
-                youtubeUrl: `https://www.youtube.com/watch?v=${yt.videoId}`,
-                previewUrl: yt.thumbnailUrl,
-              };
-            }
-          }
-          return { name: item.name, type: "text" as const };
-        })
-      );
-
-      return enriched;
+      return rawItems.map((item) => ({
+        name: item.name,
+        type: item.type,
+        youtubeSearchQuery: item.youtubeSearchQuery,
+        wikipediaSearchQuery: item.wikipediaSearchQuery,
+      }));
     }),
 });
