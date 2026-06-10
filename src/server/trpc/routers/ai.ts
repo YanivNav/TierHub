@@ -26,43 +26,79 @@ async function fetchWikipediaImage(query: string): Promise<string | null> {
     // Search generator resolves non-English queries to the correct English article.
     const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=1&prop=pageimages&pithumbsize=300&format=json`;
     const searchRes = await fetch(searchUrl, { cache: "no-store", headers: WIKIPEDIA_HEADERS });
+    if (!searchRes.ok) {
+      const body = await searchRes.text().catch(() => "");
+      console.warn(`[wikipedia] search HTTP ${searchRes.status} for "${query}" — ${body.slice(0, 200)}`);
+      return null;
+    }
     const searchData = await searchRes.json() as { query?: { pages?: Record<string, { title?: string; thumbnail?: { source: string } }> } };
     const page = Object.values(searchData?.query?.pages ?? {})[0];
-    if (!page) return null;
+    if (!page) {
+      console.warn(`[wikipedia] no article found for "${query}"`);
+      return null;
+    }
 
     // pageimages only returns the designated lead image. Fall back to the REST
     // summary API which finds article images not set as the page thumbnail.
-    if (page.thumbnail?.source) return page.thumbnail.source;
+    if (page.thumbnail?.source) {
+      console.log(`[wikipedia] "${query}" → "${page.title}" (lead image)`);
+      return page.thumbnail.source;
+    }
 
     if (page.title) {
       const summaryRes = await fetch(
         `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(page.title)}`,
         { cache: "no-store", headers: WIKIPEDIA_HEADERS }
       );
+      if (!summaryRes.ok) {
+        const body = await summaryRes.text().catch(() => "");
+        console.warn(`[wikipedia] summary HTTP ${summaryRes.status} for "${page.title}" — ${body.slice(0, 200)}`);
+        return null;
+      }
       const summaryData = await summaryRes.json() as { thumbnail?: { source: string } };
-      return summaryData?.thumbnail?.source ?? null;
+      if (summaryData?.thumbnail?.source) {
+        console.log(`[wikipedia] "${query}" → "${page.title}" (summary image)`);
+        return summaryData.thumbnail.source;
+      }
+      console.warn(`[wikipedia] article "${page.title}" for "${query}" has no thumbnail`);
+      return null;
     }
 
     return null;
-  } catch {
+  } catch (err) {
+    console.error(`[wikipedia] fetch failed for "${query}":`, err);
     return null;
   }
 }
 
 async function searchYouTube(query: string): Promise<{ videoId: string; thumbnailUrl: string } | null> {
   const apiKey = process.env.YOUTUBE_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.warn("[youtube] YOUTUBE_API_KEY is not set — skipping video resolution");
+    return null;
+  }
   try {
     const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=1&key=${apiKey}`;
     const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      // 403 here is almost always quota exceeded or an invalid/blocked key.
+      console.warn(`[youtube] search HTTP ${res.status} for "${query}" — ${body.slice(0, 300)}`);
+      return null;
+    }
     const data = await res.json() as { items?: { id: { videoId: string }; snippet: { thumbnails?: { medium?: { url: string } } } }[] };
     const item = data?.items?.[0];
-    if (!item?.id?.videoId) return null;
+    if (!item?.id?.videoId) {
+      console.warn(`[youtube] no video results for "${query}"`);
+      return null;
+    }
+    console.log(`[youtube] "${query}" → ${item.id.videoId}`);
     return {
       videoId: item.id.videoId,
       thumbnailUrl: item.snippet.thumbnails?.medium?.url ?? `https://img.youtube.com/vi/${item.id.videoId}/mqdefault.jpg`,
     };
-  } catch {
+  } catch (err) {
+    console.error(`[youtube] fetch failed for "${query}":`, err);
     return null;
   }
 }
@@ -84,9 +120,16 @@ async function resolveItemMedia(item: {
   youtubeSearchQuery: string | null;
   wikipediaSearchQuery: string | null;
 }): Promise<ResolvedMedia> {
+  console.log(
+    `[resolveMedia] "${item.name}" type=${item.type} wiki=${JSON.stringify(item.wikipediaSearchQuery)} yt=${JSON.stringify(item.youtubeSearchQuery)}`
+  );
+
   if (item.type === "image") {
     // Prefer the LLM-provided disambiguating query; fall back to the raw name.
     const imageUrl = await fetchWikipediaImage(item.wikipediaSearchQuery ?? item.name);
+    if (!imageUrl) {
+      console.warn(`[resolveMedia] "${item.name}" → image UNRESOLVED (no Wikipedia image)`);
+    }
     return { type: "image", imageUrl: imageUrl ?? undefined };
   }
   if (item.type === "video" && item.youtubeSearchQuery != null) {
@@ -98,6 +141,7 @@ async function resolveItemMedia(item: {
         previewUrl: yt.thumbnailUrl,
       };
     }
+    console.warn(`[resolveMedia] "${item.name}" → video UNRESOLVED, falling back to text`);
   }
   return { type: "text" };
 }

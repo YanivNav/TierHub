@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignedIn, SignedOut } from "@clerk/nextjs";
@@ -7,6 +8,7 @@ import { Moon, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import UserMenu from "@/components/user-menu";
+import SearchBar from "@/components/search-bar";
 
 const NAV = [
   { href: "/", label: "Home" },
@@ -47,6 +49,14 @@ export default function TopBar() {
             </Link>
           ))}
         </nav>
+
+        {/* Search — flexes to fill the middle on wider screens.
+            Suspense satisfies Next's useSearchParams static-render requirement. */}
+        <Suspense
+          fallback={<div className="hidden h-9 max-w-md flex-1 md:block" />}
+        >
+          <SearchBar className="hidden max-w-md flex-1 md:block" />
+        </Suspense>
 
         <div className="ml-auto flex items-center gap-2">
           {/* Light/dark switch — UI only for now, not wired to actual theming */}

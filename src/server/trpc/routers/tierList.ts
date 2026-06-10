@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, desc, asc } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "@/server/trpc/trpc";
-import { tierLists, tiers, items } from "@/server/db/schema";
+import { tierLists, tiers, items, tierListViews } from "@/server/db/schema";
 
 export const tierListRouter = createTRPCRouter({
   getAll: publicProcedure.query(async ({ ctx }) => {
@@ -24,6 +24,25 @@ export const tierListRouter = createTRPCRouter({
       });
       if (!list) throw new Error("Not found");
       return list;
+    }),
+
+  // Records a view of a public list (drives trending). Anonymous views count;
+  // the owner's own views are skipped so they don't inflate their rankings.
+  recordView: publicProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const list = await ctx.db.query.tierLists.findFirst({
+        where: eq(tierLists.id, input.id),
+        columns: { id: true, isPublic: true, userId: true },
+      });
+      if (!list || !list.isPublic) return { recorded: false };
+      if (ctx.userId && ctx.userId === list.userId) return { recorded: false };
+
+      await ctx.db.insert(tierListViews).values({
+        tierListId: input.id,
+        viewerId: ctx.userId ?? null,
+      });
+      return { recorded: true };
     }),
 
   getMine: protectedProcedure.query(async ({ ctx }) => {
@@ -99,6 +118,7 @@ export const tierListRouter = createTRPCRouter({
           title: source.title,
           description: source.description ?? undefined,
           isPublic: false,
+          remixedFromId: source.id,
         })
         .returning();
 

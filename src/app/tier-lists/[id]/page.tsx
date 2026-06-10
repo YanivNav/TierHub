@@ -6,6 +6,7 @@ import { db } from "@/server/db";
 import { items, tierLists, tiers } from "@/server/db/schema";
 import { Button } from "@/components/ui/button";
 import TierBoard from "@/components/tier-board";
+import ViewTracker from "@/components/view-tracker";
 
 export default async function TierListPage({
   params,
@@ -30,6 +31,7 @@ export default async function TierListPage({
 
   return (
     <main className="flex-1 bg-zinc-950 p-6 text-white">
+      <ViewTracker listId={list.id} isOwner={isOwner} />
       <div className="mx-auto max-w-4xl">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>

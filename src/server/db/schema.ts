@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, integer, boolean, index, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
@@ -10,18 +10,41 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const tierLists = pgTable("tier_lists", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  description: text("description"),
-  coverImageUrl: text("cover_image_url"),
-  isPublic: boolean("is_public").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const tierLists = pgTable(
+  "tier_lists",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    coverImageUrl: text("cover_image_url"),
+    isPublic: boolean("is_public").default(true).notNull(),
+    // Self-reference: set when this list was created by remixing another list.
+    remixedFromId: uuid("remixed_from_id").references(
+      (): AnyPgColumn => tierLists.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("tier_lists_remixed_from_idx").on(t.remixedFromId)]
+);
+
+// Records each view of a public tier list — drives trending/top rankings.
+export const tierListViews = pgTable(
+  "tier_list_views",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tierListId: uuid("tier_list_id")
+      .notNull()
+      .references(() => tierLists.id, { onDelete: "cascade" }),
+    viewerId: text("viewer_id"), // Clerk user id, or null for anonymous
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("tier_list_views_list_created_idx").on(t.tierListId, t.createdAt)]
+);
 
 export const tiers = pgTable("tiers", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -70,7 +93,12 @@ export const itemsRelations = relations(items, ({ one }) => ({
   tier: one(tiers, { fields: [items.tierId], references: [tiers.id] }),
 }));
 
+export const tierListViewsRelations = relations(tierListViews, ({ one }) => ({
+  tierList: one(tierLists, { fields: [tierListViews.tierListId], references: [tierLists.id] }),
+}));
+
 export type User = typeof users.$inferSelect;
 export type TierList = typeof tierLists.$inferSelect;
 export type Tier = typeof tiers.$inferSelect;
 export type Item = typeof items.$inferSelect;
+export type TierListView = typeof tierListViews.$inferSelect;
