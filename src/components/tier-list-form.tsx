@@ -1023,7 +1023,7 @@ export default function TierListForm({
                         <button
                           type="button"
                           onClick={() => runResolveMedia(item.localId, item.label, "image", null, item.wikipediaQuery)}
-                          title="No image found — click to retry"
+                          title="No image found — this item may not have a Wikipedia page. Click to retry."
                           className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-500/20 to-blue-600/20 transition-colors hover:from-blue-500/40 hover:to-blue-600/40"
                         >
                           <ImageOff className="h-4 w-4 text-blue-400/70" />
@@ -1059,6 +1059,11 @@ export default function TierListForm({
                       />
                       {item.file && (
                         <p className="mt-0.5 truncate text-xs text-zinc-500">{item.file.name}</p>
+                      )}
+                      {item.type === "image" && !item.previewUrl && !item.file && !isEnriching && (
+                        <p className="mt-0.5 text-xs text-amber-500/80">
+                          No image found — retry or upload one
+                        </p>
                       )}
                     </div>
 
@@ -1149,6 +1154,8 @@ export default function TierListForm({
     {(() => {
       const item = pendingItems.find((i) => i.localId === mediaDialogLocalId);
       const isEnriching = item ? enrichingItems.has(item.localId) : false;
+      const hasMedia = !!(item?.file || item?.previewUrl || item?.imageUrl || item?.videoUrl);
+      const isUnresolvedImage = !!item && item.type === "image" && !hasMedia;
       return (
         <Dialog open={!!mediaDialogLocalId} onOpenChange={(open) => { if (!open) { setMediaDialogLocalId(null); setItemYoutubeInput(""); setItemYoutubeError(null); } }}>
           <DialogContent className="max-w-sm">
@@ -1157,6 +1164,15 @@ export default function TierListForm({
             </DialogHeader>
             {item && (
               <div className="space-y-4 pt-1">
+                {isUnresolvedImage && !isEnriching && (
+                  <div className="rounded-lg border border-amber-700/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-300/90">
+                    No image was found for this item — it may not have a Wikipedia
+                    page. Try a more specific label and{" "}
+                    <span className="font-medium">Find media with AI</span>, or
+                    upload an image yourself.
+                  </div>
+                )}
+
                 {/* Upload file */}
                 <button
                   type="button"
@@ -1201,8 +1217,8 @@ export default function TierListForm({
                   {isEnriching ? "Finding media…" : "Find media with AI"}
                 </button>
 
-                {/* Remove media */}
-                {item.type !== "text" && (
+                {/* Remove media — only when there's actually media attached */}
+                {item.type !== "text" && hasMedia && (
                   <button
                     type="button"
                     onClick={() => handleRemoveItemMedia(item.localId)}
