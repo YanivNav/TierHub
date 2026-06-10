@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -8,10 +8,26 @@ import {
   DragOverEvent,
   DragOverlay,
   DragStartEvent,
+  KeyboardSensor,
+  MeasuringStrategy,
+  PointerSensor,
+  closestCenter,
+  getFirstCollision,
   pointerWithin,
-  useDraggable,
+  rectIntersection,
   useDroppable,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type UniqueIdentifier,
 } from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   Video,
@@ -50,6 +66,14 @@ type Item = {
   videoUrl: string | null;
 };
 
+const UNRANKED = "unranked";
+
+// Stable empty reference so SortableContext's `items` identity doesn't churn.
+const EMPTY_IDS: string[] = [];
+
+/** Map of container id (tier id or UNRANKED) → ordered list of item ids. */
+type Containers = Record<string, string[]>;
+
 export default function TierBoard({
   tierListId,
   tiers: initialTiers,
@@ -61,113 +85,189 @@ export default function TierBoard({
   items: Item[];
   isOwner: boolean;
 }) {
-  const [positions, setPositions] = useState<Record<string, string | null>>(
-    () => Object.fromEntries(items.map((item) => [item.id, item.tierId]))
+  const itemMap = useMemo(
+    () => Object.fromEntries(items.map((item) => [item.id, item])),
+    [items]
   );
-  const [ranks, setRanks] = useState<Record<string, number>>(
-    () => Object.fromEntries(items.map((item) => [item.id, item.rank ?? 0]))
+
+  const containerIds = useMemo(
+    () => [...initialTiers.map((t) => t.id), UNRANKED],
+    [initialTiers]
   );
+
+  // Source of truth while interacting: each container's ordered item ids.
+  const [containers, setContainers] = useState<Containers>(() => {
+    const grouped: Containers = Object.fromEntries(
+      containerIds.map((id) => [id, [] as string[]])
+    );
+    [...items]
+      .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
+      .forEach((item) => {
+        const cid = item.tierId ?? UNRANKED;
+        (grouped[cid] ?? grouped[UNRANKED]).push(item.id);
+      });
+    return grouped;
+  });
+
   const [activeId, setActiveId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [previewVideoId, setPreviewVideoId] = useState<string | null>(null);
   const router = useRouter();
+
+  // Container the dragged item started in, so we know which lists to persist.
+  const sourceContainerRef = useRef<string | null>(null);
+  // Stabilizers for the multi-container collision strategy.
+  const lastOverId = useRef<UniqueIdentifier | null>(null);
+  const recentlyMovedToNewContainer = useRef(false);
+
   const duplicateMutation = trpc.tierList.duplicate.useMutation({
     onSuccess: ({ id }) => router.push(`/dashboard/${id}`),
   });
-  const [previewVideoId, setPreviewVideoId] = useState<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<{
-    tierId: string | null;
-    insertIndex: number;
-  } | null>(null);
-
   const updateItemTier = trpc.item.updateTier.useMutation();
 
-  const activeItem = activeId ? items.find((i) => i.id === activeId) : null;
+  const sensors = useSensors(
+    // Small activation distance so a click (e.g. the play button) never starts a drag.
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
-  function getItemsInTier(tierId: string | null) {
-    return items
-      .filter((item) => positions[item.id] === tierId)
-      .sort((a, b) => ranks[a.id] - ranks[b.id]);
+  const activeItem = activeId ? itemMap[activeId] : null;
+
+  function findContainer(id: string): string | undefined {
+    if (id in containers) return id;
+    return containerIds.find((cid) => containers[cid]?.includes(id));
   }
+
+  /** Persist the given containers' items with their new tier + rank. */
+  function persist(state: Containers, touched: (string | null | undefined)[]) {
+    if (!isOwner) return;
+    const unique = Array.from(new Set(touched.filter(Boolean))) as string[];
+    unique.forEach((cid) => {
+      const tierId = cid === UNRANKED ? null : cid;
+      state[cid]?.forEach((id, index) => {
+        updateItemTier.mutate({ id, tierId, rank: index });
+      });
+    });
+  }
+
+  /** Custom collision detection for the multi-container grid:
+   *  prefer pointer-based hits, and when hovering a container's empty area,
+   *  fall back to the closest item *inside* that container. Keeps empty tiers
+   *  droppable while still snapping to the nearest slot. */
+  const collisionDetection: CollisionDetection = useCallback(
+    (args) => {
+      const pointerCollisions = pointerWithin(args);
+      const intersections =
+        pointerCollisions.length > 0 ? pointerCollisions : rectIntersection(args);
+      let overId = getFirstCollision(intersections, "id");
+
+      if (overId != null) {
+        // Hovering a container's empty area → snap to the closest item inside it.
+        if (typeof overId === "string" && overId in containers) {
+          const itemsInContainer = containers[overId];
+          if (itemsInContainer.length > 0) {
+            const closest = closestCenter({
+              ...args,
+              droppableContainers: args.droppableContainers.filter(
+                (c) =>
+                  c.id !== overId &&
+                  itemsInContainer.includes(c.id as string)
+              ),
+            });
+            if (closest.length > 0) overId = closest[0].id;
+          }
+        }
+        lastOverId.current = overId;
+        return [{ id: overId }];
+      }
+
+      // Pointer is momentarily over no droppable (label column, row borders,
+      // board edges). Hold the last valid target so the gap doesn't flicker.
+      if (recentlyMovedToNewContainer.current) {
+        lastOverId.current = activeId;
+      }
+      return lastOverId.current != null ? [{ id: lastOverId.current }] : [];
+    },
+    [activeId, containers]
+  );
+
+  // Reset the "just moved containers" flag after the resulting re-render.
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      recentlyMovedToNewContainer.current = false;
+    });
+  }, [containers]);
 
   function handleDragStart(event: DragStartEvent) {
-    setActiveId(event.active.id as string);
-    setDropTarget(null);
+    const id = event.active.id as string;
+    setActiveId(id);
+    sourceContainerRef.current = findContainer(id) ?? null;
+    lastOverId.current = id;
   }
 
-  /** Shared logic: given the dragged item and the over-target id, compute where
-   *  it would be inserted (tierId + index into the filtered list without the
-   *  dragged item itself). Used by both onDragOver and onDragEnd. */
-  function computeDropTarget(itemId: string, overId: string) {
-    const tierIds = new Set(initialTiers.map((t) => t.id));
-    let newTierId: string | null;
-    let overItemId: string | null = null;
-
-    if (overId === "unranked") {
-      newTierId = null;
-    } else if (tierIds.has(overId)) {
-      newTierId = overId;
-    } else {
-      overItemId = overId;
-      newTierId = positions[overItemId] ?? null;
-    }
-
-    // Items already in the target tier, excluding the dragged item
-    const filteredItems = items
-      .filter((item) => positions[item.id] === newTierId && item.id !== itemId)
-      .sort((a, b) => (ranks[a.id] ?? 0) - (ranks[b.id] ?? 0));
-
-    let insertIndex = filteredItems.length; // default: append
-    if (overItemId) {
-      const idx = filteredItems.findIndex((item) => item.id === overItemId);
-      if (idx !== -1) insertIndex = idx;
-    }
-
-    return { tierId: newTierId, insertIndex, filteredItems };
-  }
-
+  // Live cross-container moves: as soon as the item hovers a different
+  // container, move it there so the opening gap reflects the real drop target.
   function handleDragOver(event: DragOverEvent) {
     const { active, over } = event;
-    if (!over) { setDropTarget(null); return; }
-    const { tierId, insertIndex } = computeDropTarget(
-      active.id as string,
-      over.id as string,
-    );
-    setDropTarget({ tierId, insertIndex });
+    if (!over) return;
+    const id = active.id as string;
+    const overId = over.id as string;
+
+    const activeContainer = findContainer(id);
+    const overContainer = findContainer(overId);
+    if (!activeContainer || !overContainer || activeContainer === overContainer)
+      return;
+
+    recentlyMovedToNewContainer.current = true;
+    setContainers((prev) => {
+      const activeItems = prev[activeContainer];
+      const overItems = prev[overContainer];
+      const overIndex = overItems.indexOf(overId);
+      const newIndex = overId in prev ? overItems.length : Math.max(overIndex, 0);
+
+      return {
+        ...prev,
+        [activeContainer]: activeItems.filter((x) => x !== id),
+        [overContainer]: [
+          ...overItems.slice(0, newIndex),
+          id,
+          ...overItems.slice(newIndex),
+        ],
+      };
+    });
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
+    const id = active.id as string;
+    const source = sourceContainerRef.current;
+    sourceContainerRef.current = null;
     setActiveId(null);
-    setDropTarget(null);
+
     if (!over) return;
+    const overId = over.id as string;
+    const overContainer = findContainer(overId);
+    const activeContainer = findContainer(id);
+    if (!activeContainer || !overContainer) return;
 
-    const itemId = active.id as string;
-    const { tierId: newTierId, insertIndex, filteredItems } = computeDropTarget(
-      itemId,
-      over.id as string,
-    );
-    const oldTierId = positions[itemId] ?? null;
+    let finalState = containers;
+    let changed = source !== overContainer; // crossed containers during drag
 
-    if (newTierId !== oldTierId) {
-      setPositions((prev) => ({ ...prev, [itemId]: newTierId }));
+    if (activeContainer === overContainer) {
+      const list = containers[overContainer];
+      const oldIndex = list.indexOf(id);
+      const newIndex = list.indexOf(overId);
+      if (newIndex !== -1 && oldIndex !== newIndex) {
+        finalState = {
+          ...containers,
+          [overContainer]: arrayMove(list, oldIndex, newIndex),
+        };
+        setContainers(finalState);
+        changed = true;
+      }
     }
 
-    const reordered = [...filteredItems];
-    reordered.splice(insertIndex, 0, items.find((i) => i.id === itemId)!);
-
-    const newRanks: Record<string, number> = {};
-    reordered.forEach((item, index) => { newRanks[item.id] = index; });
-
-    // Skip no-op same-tier reorders
-    if (newTierId === oldTierId && reordered.every((item, i) => (ranks[item.id] ?? 0) === i)) return;
-
-    setRanks((prev) => ({ ...prev, ...newRanks }));
-
-    if (isOwner) {
-      Object.entries(newRanks).forEach(([id, rank]) => {
-        updateItemTier.mutate({ id, tierId: newTierId, rank });
-      });
-    }
+    if (changed) persist(finalState, [source, overContainer]);
   }
 
   function handleCopyLink() {
@@ -177,17 +277,16 @@ export default function TierBoard({
   }
 
   function handleClearRanking() {
-    const newPositions: Record<string, string | null> = {};
-    const newRanks: Record<string, number> = {};
-    items.forEach((item, i) => {
-      newPositions[item.id] = null;
-      newRanks[item.id] = i;
-    });
-    setPositions(newPositions);
-    setRanks(newRanks);
+    const ordered = [...items]
+      .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
+      .map((item) => item.id);
+    const cleared: Containers = Object.fromEntries(
+      containerIds.map((id) => [id, id === UNRANKED ? ordered : []])
+    );
+    setContainers(cleared);
     if (isOwner) {
-      items.forEach((item, i) => {
-        updateItemTier.mutate({ id: item.id, tierId: null, rank: i });
+      ordered.forEach((id, i) => {
+        updateItemTier.mutate({ id, tierId: null, rank: i });
       });
     }
   }
@@ -241,31 +340,32 @@ export default function TierBoard({
       </div>
 
       <DndContext
+        id="tier-board-dnd"
+        sensors={sensors}
+        collisionDetection={collisionDetection}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
-        collisionDetection={pointerWithin}
       >
         <div className="overflow-hidden rounded-xl border border-zinc-800">
           {initialTiers.map((tier, i) => (
             <TierRow
               key={tier.id}
               tier={tier}
-              items={getItemsInTier(tier.id)}
+              itemIds={containers[tier.id] ?? EMPTY_IDS}
+              itemMap={itemMap}
               isLast={i === initialTiers.length - 1}
               isDragging={!!activeId}
-              activeId={activeId}
-              dropTarget={dropTarget}
               onPlayClick={setPreviewVideoId}
             />
           ))}
         </div>
 
         <UnrankedPool
-          items={getItemsInTier(null)}
+          itemIds={containers[UNRANKED] ?? EMPTY_IDS}
+          itemMap={itemMap}
           isDragging={!!activeId}
-          activeId={activeId}
-          dropTarget={dropTarget}
           onPlayClick={setPreviewVideoId}
         />
 
@@ -289,72 +389,65 @@ export default function TierBoard({
 
 function TierRow({
   tier,
-  items,
+  itemIds,
+  itemMap,
   isLast,
   isDragging,
-  activeId,
-  dropTarget,
   onPlayClick,
 }: {
   tier: Tier;
-  items: Item[];
+  itemIds: string[];
+  itemMap: Record<string, Item>;
   isLast: boolean;
   isDragging: boolean;
-  activeId: string | null;
-  dropTarget: { tierId: string | null; insertIndex: number } | null;
   onPlayClick?: (itemId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: tier.id });
 
   return (
-    <div className={`flex min-h-[5.5rem] ${!isLast ? "border-b border-zinc-800" : ""}`}>
+    <div className={`flex min-h-22 ${!isLast ? "border-b border-zinc-800" : ""}`}>
       {/* Label cell */}
       <div
-        className="flex w-16 shrink-0 items-center justify-center text-xl font-black sm:w-20"
+        className="flex w-16 shrink-0 items-center justify-center px-1 text-xl font-bold sm:w-20"
         style={{ backgroundColor: tier.color + "22", borderRight: `3px solid ${tier.color}` }}
       >
-        <span style={{ color: tier.color }}>{tier.label}</span>
+        <span className="w-full break-words text-center leading-tight" style={{ color: tier.color, fontFamily: "system-ui, sans-serif" }}>
+          {tier.label}
+        </span>
       </div>
 
       {/* Drop zone */}
       <div
         ref={setNodeRef}
         className={`flex flex-1 flex-wrap content-start gap-2 p-2 transition-colors ${
-          isOver ? "bg-white/5" : isDragging ? "bg-white/[0.02]" : ""
+          isOver ? "bg-white/5" : isDragging ? "bg-white/2" : ""
         }`}
       >
-        {(() => {
-          const visible = items.filter((item) => item.id !== activeId);
-          const isTarget = dropTarget?.tierId === tier.id;
-          return visible.map((item, idx) => (
-            <span key={item.id} className="contents">
-              {isTarget && dropTarget!.insertIndex === idx && <Placeholder />}
-              <DraggableItem item={item} onPlayClick={onPlayClick} />
-            </span>
-          )).concat(
-            isTarget && dropTarget!.insertIndex >= visible.length
-              ? [<Placeholder key="placeholder-end" />]
-              : []
-          );
-        })()}
+        <SortableContext items={itemIds} strategy={rectSortingStrategy}>
+          {itemIds.map((id) => {
+            const item = itemMap[id];
+            return item ? (
+              <SortableItem key={id} item={item} onPlayClick={onPlayClick} />
+            ) : null;
+          })}
+        </SortableContext>
       </div>
     </div>
   );
 }
 
-function UnrankedPool({ items, isDragging, activeId, dropTarget, onPlayClick }: {
-  items: Item[];
+function UnrankedPool({ itemIds, itemMap, isDragging, onPlayClick }: {
+  itemIds: string[];
+  itemMap: Record<string, Item>;
   isDragging: boolean;
-  activeId: string | null;
-  dropTarget: { tierId: string | null; insertIndex: number } | null;
   onPlayClick?: (itemId: string) => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: "unranked" });
+  const { setNodeRef, isOver } = useDroppable({ id: UNRANKED });
 
   return (
     <div>
       <p className="mb-2 text-sm font-medium text-zinc-500">
-        Unranked{items.length > 0 ? ` · ${items.length}` : ""}
+        Unranked{itemIds.length > 0 ? ` · ${itemIds.length}` : ""}
       </p>
       <div
         ref={setNodeRef}
@@ -362,30 +455,24 @@ function UnrankedPool({ items, isDragging, activeId, dropTarget, onPlayClick }: 
           isOver
             ? "border-zinc-600 bg-white/5"
             : isDragging
-            ? "border-zinc-700 bg-white/[0.02]"
+            ? "border-zinc-700 bg-white/2"
             : "border-zinc-800"
         }`}
       >
-        {items.length === 0 && !isDragging ? (
+        {itemIds.length === 0 && !isDragging ? (
           <p className="flex h-14 items-center justify-center text-sm text-zinc-600">
             Drag items here to unrank them
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {(() => {
-              const visible = items.filter((item) => item.id !== activeId);
-              const isTarget = dropTarget?.tierId === null;
-              return visible.map((item, idx) => (
-                <span key={item.id} className="contents">
-                  {isTarget && dropTarget!.insertIndex === idx && <Placeholder />}
-                  <DraggableItem item={item} onPlayClick={onPlayClick} />
-                </span>
-              )).concat(
-                isTarget && dropTarget!.insertIndex >= visible.length
-                  ? [<Placeholder key="placeholder-end" />]
-                  : []
-              );
-            })()}
+            <SortableContext items={itemIds} strategy={rectSortingStrategy}>
+              {itemIds.map((id) => {
+                const item = itemMap[id];
+                return item ? (
+                  <SortableItem key={id} item={item} onPlayClick={onPlayClick} />
+                ) : null;
+              })}
+            </SortableContext>
           </div>
         )}
       </div>
@@ -393,28 +480,26 @@ function UnrankedPool({ items, isDragging, activeId, dropTarget, onPlayClick }: 
   );
 }
 
-function Placeholder() {
-  return (
-    <div className="h-20 w-20 shrink-0 rounded-lg border-2 border-dashed border-zinc-500 bg-zinc-800/30" />
-  );
-}
+function SortableItem({ item, onPlayClick }: { item: Item; onPlayClick?: (itemId: string) => void }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
 
-function DraggableItem({ item, onPlayClick }: { item: Item; onPlayClick?: (itemId: string) => void }) {
-  const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
-    id: item.id,
-  });
-  const { setNodeRef: setDropRef } = useDroppable({ id: item.id });
-
-  const setRef = (el: HTMLElement | null) => {
-    setDragRef(el);
-    setDropRef(el);
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
   };
 
   return (
     <div
-      ref={setRef}
-      style={transform ? { transform: CSS.Translate.toString(transform) } : undefined}
-      className={`cursor-grab active:cursor-grabbing ${isDragging ? "opacity-30" : ""}`}
+      ref={setNodeRef}
+      style={style}
+      className={`touch-none cursor-grab active:cursor-grabbing ${isDragging ? "opacity-30" : ""}`}
       {...attributes}
       {...listeners}
     >
@@ -434,7 +519,7 @@ function ItemCard({ item, isOverlay, onPlayClick }: { item: Item; isOverlay?: bo
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={item.imageUrl} alt={item.label} className="h-full w-full object-cover" draggable={false} />
         {item.label && (
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-1 pb-1 pt-3">
+          <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent px-1 pb-1 pt-3">
             <p className="truncate text-center text-[10px] text-white">{item.label}</p>
           </div>
         )}
@@ -453,7 +538,7 @@ function ItemCard({ item, isOverlay, onPlayClick }: { item: Item; isOverlay?: bo
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={item.imageUrl} alt={item.label} className="h-full w-full object-cover" draggable={false} />
             {item.label && (
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-1 pb-1 pt-3">
+              <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent px-1 pb-1 pt-3">
                 <p className="truncate text-center text-[10px] text-white">{item.label}</p>
               </div>
             )}
@@ -533,7 +618,7 @@ function VideoPreview({ item }: { item?: Item }) {
         <video
           src={videoUrl}
           controls
-          className="w-full max-h-[400px] rounded-lg"
+          className="w-full max-h-100 rounded-lg"
           title={item.label || "Video"}
         />
       )}
