@@ -4,6 +4,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/server/db";
 import { items, tierLists, tiers } from "@/server/db/schema";
 import TierListForm from "@/components/tier-list-form";
+import DeleteListButton from "@/components/delete-list-button";
 
 export default async function EditTierListPage({
   params,
@@ -28,7 +29,15 @@ export default async function EditTierListPage({
   return (
     <main className="flex-1 bg-zinc-950 p-8 text-white">
       <div className="mx-auto max-w-2xl">
-        <h1 className="mb-8 text-3xl font-bold">Edit Tier List</h1>
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <h1 className="text-3xl font-bold">Edit Tier List</h1>
+          <DeleteListButton
+            id={list.id}
+            title={list.title}
+            label="Delete list"
+            redirectTo="/dashboard"
+          />
+        </div>
 
         <TierListForm
           mode="edit"

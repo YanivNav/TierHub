@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut } from "@clerk/nextjs";
 import { Moon, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import UserMenu from "@/components/user-menu";
 
 const NAV = [
   { href: "/", label: "Home" },
@@ -69,7 +70,7 @@ export default function TopBar() {
                 New List
               </Link>
             </Button>
-            <UserButton afterSignOutUrl="/" />
+            <UserMenu />
           </SignedIn>
 
           <SignedOut>

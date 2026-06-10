@@ -7,6 +7,7 @@ import { tierLists } from "@/server/db/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import DeleteListButton from "@/components/delete-list-button";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -64,7 +65,8 @@ export default async function DashboardPage() {
                   <span className="text-xs text-zinc-500">
                     {new Date(list.createdAt).toLocaleDateString()}
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-1">
+                    <DeleteListButton id={list.id} title={list.title} />
                     <Button
                       asChild
                       size="sm"

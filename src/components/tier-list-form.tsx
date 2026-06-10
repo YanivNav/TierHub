@@ -655,6 +655,12 @@ export default function TierListForm({
         if (item.imageUrl && !item.file) {
           return { label: item.label || "Image", type: "image" as const, imageUrl: item.imageUrl };
         }
+        // No uploaded file and no resolved media URL yet — e.g. an AI-generated
+        // image whose Wikipedia lookup is still in flight when the user hits save.
+        // Persist the label + type without media; it can be enriched later in edit.
+        if (!item.file) {
+          return { label: item.label || "Untitled", type: item.type };
+        }
         const { uploadUrl, publicUrl } = await getUploadUrl.mutateAsync({
           tierListId: listId,
           filename: item.file!.name,
