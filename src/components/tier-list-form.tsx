@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import TierEditor, { type PendingTier } from "@/components/tier-editor";
 import { getYouTubeVideoId, getYouTubeThumbnail, getYouTubeEmbedUrl } from "@/lib/youtube";
 
@@ -145,6 +145,8 @@ export default function TierListForm({
   const [youtubeError, setYoutubeError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set after a successful save → drives the "what next?" dialog.
+  const [savedListId, setSavedListId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const perItemFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -521,7 +523,8 @@ export default function TierListForm({
         }
 
         await uploadAndSaveItems(list.id, pendingItems);
-        router.push(`/dashboard/${list.id}`);
+        setIsSubmitting(false);
+        setSavedListId(list.id);
       } else {
         // 1. Update metadata
         await updateTierList.mutateAsync({
@@ -628,7 +631,8 @@ export default function TierListForm({
         const newItems = pendingItems.filter((p) => !p.dbId);
         if (newItems.length > 0) await uploadAndSaveItems(tierListId!, newItems);
 
-        router.push(`/dashboard/${tierListId!}`);
+        setIsSubmitting(false);
+        setSavedListId(tierListId!);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -995,6 +999,33 @@ export default function TierListForm({
         </Button>
       </div>
     </form>
+
+    {/* Post-save dialog: view the list, go to dashboard, or stay (X) */}
+    <Dialog open={savedListId !== null} onOpenChange={(open) => { if (!open) setSavedListId(null); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{isCreate ? "Tier list created" : "Changes saved"}</DialogTitle>
+          <DialogDescription>What would you like to do next?</DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="border-zinc-700 text-zinc-300"
+            onClick={() => router.push("/dashboard")}
+          >
+            Back to dashboard
+          </Button>
+          <Button
+            type="button"
+            className="bg-blue-600 hover:bg-blue-500"
+            onClick={() => savedListId && router.push(`/tier-lists/${savedListId}`)}
+          >
+            View tier list
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     {/* Edit media dialog */}
     {(() => {
