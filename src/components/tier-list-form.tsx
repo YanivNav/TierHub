@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Type, Video, X, Youtube, Sparkles, Wand2, Play } from "lucide-react";
+import { Upload, Type, Video, X, Youtube, Sparkles, Wand2, Play, Loader2, ImageOff } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,29 @@ import TierEditor, { type PendingTier } from "@/components/tier-editor";
 import { getYouTubeVideoId, getYouTubeThumbnail, getYouTubeEmbedUrl } from "@/lib/youtube";
 
 type ItemType = "text" | "image" | "video";
+
+/** Shape returned by the ai.resolveMedia / ai.enrichItem procedures. */
+type MediaResult =
+  | { type: "text" }
+  | { type: "image"; imageUrl?: string }
+  | { type: "video"; youtubeUrl: string; previewUrl: string };
+
+/** Apply a resolved-media result onto a pending item, narrowing the union. */
+function withResolvedMedia(item: PendingItem, result: MediaResult): PendingItem {
+  const base = {
+    ...item,
+    file: undefined,
+    videoQuery: undefined,
+    mediaDirty: item.dbId !== undefined ? true : item.mediaDirty,
+  };
+  if (result.type === "image") {
+    return { ...base, type: "image", imageUrl: result.imageUrl, videoUrl: undefined, previewUrl: result.imageUrl ?? item.previewUrl };
+  }
+  if (result.type === "video") {
+    return { ...base, type: "video", videoUrl: result.youtubeUrl, imageUrl: undefined, previewUrl: result.previewUrl };
+  }
+  return { ...base, type: "text", imageUrl: undefined, videoUrl: undefined };
+}
 
 type ExistingItemData = {
   id: string;
@@ -43,6 +66,10 @@ type PendingItem = {
   imageUrl?: string;
   /** Thumbnail shown in the list (blob URL for images, YouTube thumbnail for YT videos) */
   previewUrl?: string;
+  /** AI-classified video awaiting lazy resolution — the YouTube search query to use */
+  videoQuery?: string;
+  /** AI-generated disambiguating Wikipedia search query for image items */
+  wikipediaQuery?: string;
   labelDirty: boolean;
   /** True when type/imageUrl/videoUrl/file was changed on an existing (dbId) item */
   mediaDirty?: boolean;
@@ -140,6 +167,7 @@ export default function TierListForm({
   // AI
   const generateItems = trpc.ai.generateItems.useMutation();
   const enrichItem = trpc.ai.enrichItem.useMutation();
+  const trpcUtils = trpc.useUtils();
 
   // Tier mutations (edit mode only)
   const createTier = trpc.tier.create.useMutation();
@@ -290,6 +318,7 @@ export default function TierListForm({
     setAiError(null);
     try {
       const existingItems = pendingItems.map((i) => i.label || i.type);
+      // Phase 1: names + classification only (no media URLs yet).
       const aiItems = await generateItems.mutateAsync({
         prompt,
         title: title.trim() || undefined,
@@ -300,15 +329,51 @@ export default function TierListForm({
         localId: crypto.randomUUID(),
         type: item.type,
         label: item.name,
-        imageUrl: item.imageUrl,
-        videoUrl: item.youtubeUrl,
-        previewUrl: item.imageUrl ?? item.previewUrl,
+        videoQuery: item.type === "video" ? item.youtubeSearchQuery ?? undefined : undefined,
+        wikipediaQuery: item.type === "image" ? item.wikipediaSearchQuery ?? undefined : undefined,
         labelDirty: false,
       }));
-      
+
       setPendingItems((prev) => [...prev, ...newItems]);
+
+      // Phase 2: resolve images lazily, staggered to avoid hitting Wikipedia's
+      // rate limit when generating large lists (e.g. 45 politicians at once).
+      void (async () => {
+        for (const item of newItems) {
+          if (item.type === "image") {
+            void runResolveMedia(item.localId, item.label, "image", null, item.wikipediaQuery);
+            await new Promise((res) => setTimeout(res, 120));
+          }
+        }
+      })();
     } catch {
       setAiError("Couldn't generate items. Please try again later.");
+    }
+  };
+
+  /** Phase 2: fetch the real media URL for an already-classified item. */
+  const runResolveMedia = async (
+    localId: string,
+    name: string,
+    type: ItemType,
+    youtubeSearchQuery: string | null,
+    wikipediaSearchQuery?: string | null,
+  ) => {
+    if (!name.trim()) return;
+    setEnrichingItems((prev) => new Set(prev).add(localId));
+    try {
+      const result = await trpcUtils.client.ai.resolveMedia.query({ name: name.trim(), type, youtubeSearchQuery, wikipediaSearchQuery });
+      setPendingItems((prev) =>
+        prev.map((item) => (item.localId === localId ? withResolvedMedia(item, result) : item))
+      );
+    } catch {
+      // silently leave the item as-is if media resolution fails
+    } finally {
+      setEnrichingItems((prev) => {
+        const next = new Set(prev);
+        next.delete(localId);
+        return next;
+      });
     }
   };
 
@@ -322,17 +387,7 @@ export default function TierListForm({
         description: description.trim() || undefined,
       });
       setPendingItems((prev) =>
-        prev.map((item) => {
-          if (item.localId !== localId) return item;
-          return {
-            ...item,
-            type: result.type,
-            imageUrl: result.imageUrl,
-            videoUrl: result.youtubeUrl,
-            previewUrl: result.imageUrl ?? result.previewUrl ?? item.previewUrl,
-            mediaDirty: item.dbId !== undefined ? true : item.mediaDirty,
-          };
-        })
+        prev.map((item) => (item.localId === localId ? withResolvedMedia(item, result) : item))
       );
     } finally {
       setEnrichingItems((prev) => {
@@ -466,7 +521,7 @@ export default function TierListForm({
         }
 
         await uploadAndSaveItems(list.id, pendingItems);
-        router.push("/dashboard");
+        router.push(`/dashboard/${list.id}`);
       } else {
         // 1. Update metadata
         await updateTierList.mutateAsync({
@@ -573,7 +628,7 @@ export default function TierListForm({
         const newItems = pendingItems.filter((p) => !p.dbId);
         if (newItems.length > 0) await uploadAndSaveItems(tierListId!, newItems);
 
-        router.push("/dashboard");
+        router.push(`/dashboard/${tierListId!}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -727,6 +782,11 @@ export default function TierListForm({
             {generateItems.isPending ? "Generating…" : "Generate"}
           </Button>
         </div>
+        {generateItems.isPending && (
+          <div className="relative h-0.5 overflow-hidden rounded-full bg-zinc-700">
+            <div className="absolute h-full w-2/5 rounded-full bg-violet-500 animate-indeterminate" />
+          </div>
+        )}
         {aiError && <p className="text-xs text-red-400">{aiError}</p>}
       </div>
 
@@ -815,6 +875,8 @@ export default function TierListForm({
             {pendingItems.map((item) => {
               const isEnriching = enrichingItems.has(item.localId);
               const hasVideo = item.type === "video" && (item.videoUrl ?? item.file);
+              const needsVideoLoad =
+                item.type === "video" && !item.previewUrl && !item.file && !!item.videoQuery;
               return (
                 <div key={item.localId} className="flex flex-col">
                   <div className="flex items-center gap-3 p-3">
@@ -823,14 +885,36 @@ export default function TierListForm({
                       {item.previewUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
+                      ) : needsVideoLoad ? (
+                        <button
+                          type="button"
+                          onClick={() => runResolveMedia(item.localId, item.label, "video", item.videoQuery!)}
+                          disabled={isEnriching}
+                          title="Load video from YouTube"
+                          className="flex h-full w-full items-center justify-center text-red-500 hover:bg-zinc-600/50 transition-colors"
+                        >
+                          <Youtube className="h-5 w-5" />
+                        </button>
                       ) : item.type === "video" ? (
                         <Video className="h-5 w-5 text-purple-400" />
                       ) : item.type === "image" ? (
-                        <div className="h-full w-full bg-linear-to-br from-blue-500/30 to-blue-600/30" />
+                        <button
+                          type="button"
+                          onClick={() => runResolveMedia(item.localId, item.label, "image", null, item.wikipediaQuery)}
+                          title="No image found — click to retry"
+                          className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-500/20 to-blue-600/20 transition-colors hover:from-blue-500/40 hover:to-blue-600/40"
+                        >
+                          <ImageOff className="h-4 w-4 text-blue-400/70" />
+                        </button>
                       ) : (
                         <Type className="h-5 w-5 text-blue-400" />
                       )}
-                      {hasVideo && (
+                      {isEnriching && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[1px]">
+                          <Loader2 className="h-5 w-5 animate-spin text-violet-400" />
+                        </div>
+                      )}
+                      {!isEnriching && hasVideo && (
                         <button
                           type="button"
                           onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
@@ -1009,7 +1093,7 @@ export default function TierListForm({
                 />
               </div>
             ) : videoUrl ? (
-              <video src={videoUrl} controls className="w-full max-h-[400px] rounded-lg" />
+              <video src={videoUrl} controls className="w-full max-h-100 rounded-lg" />
             ) : null}
           </DialogContent>
         </Dialog>
