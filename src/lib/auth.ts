@@ -92,35 +92,3 @@ export async function ensureUser(userId: string) {
     })
     .onConflictDoNothing({ target: users.id });
 }
-
-export async function syncUser() {
-  const clerkUser = await currentUser();
-  if (!clerkUser) return null;
-
-  const existing = await db.query.users.findFirst({
-    where: eq(users.id, clerkUser.id),
-  });
-
-  if (existing) return existing;
-
-  const email = clerkUser.emailAddresses[0]?.emailAddress ?? "";
-  const base = deriveUsername({
-    username: clerkUser.username,
-    email,
-    firstName: clerkUser.firstName,
-    id: clerkUser.id,
-  });
-  const username = await resolveUniqueUsername(base, clerkUser.id);
-
-  const [user] = await db
-    .insert(users)
-    .values({
-      id: clerkUser.id,
-      email,
-      username,
-      imageUrl: clerkUser.imageUrl,
-    })
-    .returning();
-
-  return user;
-}
