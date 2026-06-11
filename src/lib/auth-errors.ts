@@ -1,6 +1,6 @@
 import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 
-type AuthContext = "sign-in" | "sign-up" | "verify" | "oauth";
+type AuthContext = "sign-in" | "sign-up" | "verify" | "oauth" | "profile";
 
 const GENERIC = "Something went wrong. Please try again.";
 
@@ -82,6 +82,18 @@ export function getAuthErrorMessage(err: unknown, context: AuthContext): string 
           return "You're already signed in.";
         default:
           return "Couldn't continue with that provider. Please try again.";
+      }
+    }
+
+    case "profile": {
+      switch (code) {
+        case "form_param_format_invalid":
+        case "image_type_not_allowed":
+          return "That file type isn't supported. Try a PNG or JPG.";
+        case "request_body_too_large":
+          return "That image is too large. Please choose a smaller file.";
+        default:
+          return "Couldn't update your profile. Please try again.";
       }
     }
   }

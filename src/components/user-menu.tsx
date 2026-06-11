@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
-import { LogOut, User as UserIcon } from "lucide-react";
+import { LogOut, Settings, User as UserIcon } from "lucide-react";
 
 export default function UserMenu() {
   const { user, isLoaded } = useUser();
@@ -36,7 +36,8 @@ export default function UserMenu() {
   }
 
   const email = user.primaryEmailAddress?.emailAddress ?? "";
-  const name = user.fullName ?? user.firstName ?? email.split("@")[0] ?? "Account";
+  console.log(user)
+  const name = user.fullName ?? user.firstName ?? user.username ?? email.split("@")[0] ?? "Account";
   const initial = (name[0] ?? "?").toUpperCase();
 
   return (
@@ -88,6 +89,18 @@ export default function UserMenu() {
             >
               <UserIcon className="h-4 w-4" />
               My Tier Lists
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                router.push("/settings");
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
             </button>
             <button
               type="button"
