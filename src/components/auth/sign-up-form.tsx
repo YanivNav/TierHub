@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSignUp } from "@clerk/nextjs";
-import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
+import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -32,11 +32,7 @@ export default function SignUpForm() {
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       setPendingVerification(true);
     } catch (err) {
-      setError(
-        isClerkAPIResponseError(err)
-          ? (err.errors[0]?.longMessage ?? err.errors[0]?.message ?? "Could not create account")
-          : "Something went wrong. Please try again."
-      );
+      setError(getAuthErrorMessage(err, "sign-up"));
     } finally {
       setSubmitting(false);
     }
@@ -59,11 +55,7 @@ export default function SignUpForm() {
         setSubmitting(false);
       }
     } catch (err) {
-      setError(
-        isClerkAPIResponseError(err)
-          ? (err.errors[0]?.longMessage ?? err.errors[0]?.message ?? "Invalid code")
-          : "Something went wrong. Please try again."
-      );
+      setError(getAuthErrorMessage(err, "verify"));
       setSubmitting(false);
     }
   };

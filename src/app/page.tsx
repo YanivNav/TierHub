@@ -47,15 +47,14 @@ export default async function HomePage() {
           Tier<span className="text-blue-500">Hub</span>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-zinc-400">
-          Discover and create tier lists for anything — movies, music, games,
-          and more.
+          Create beautiful tier lists with text, images, videos, and AI-powered suggestions. Share with the world.
         </p>
         <div className="mt-6 flex justify-center gap-3">
           <Link
             href={userId ? "/dashboard/new" : "/sign-up"}
             className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold transition hover:bg-blue-500"
           >
-            {userId ? "Create a tier list" : "Get Started"}
+            {userId ? "New tier list" : "Create your own tier list"}
           </Link>
           {userId && (
             <Link

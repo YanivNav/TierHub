@@ -6,7 +6,7 @@ import { db } from "@/server/db";
 import { items, tierLists } from "@/server/db/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import DeleteListButton from "@/components/delete-list-button";
 import TierCardThumbnail from "@/components/tier-card-thumbnail";
 
@@ -59,7 +59,7 @@ export default async function DashboardPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {lists.map((list) => (
               <Card
                 key={list.id}
@@ -84,11 +84,6 @@ export default async function DashboardPage() {
                       {list.isPublic ? "Public" : "Private"}
                     </Badge>
                   </div>
-                  {list.description && (
-                    <CardDescription className="line-clamp-2 text-zinc-400">
-                      {list.description}
-                    </CardDescription>
-                  )}
                 </CardHeader>
                 <CardFooter className="flex items-center justify-between border-t border-zinc-800 pt-3">
                   <span className="text-xs text-zinc-500">

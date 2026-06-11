@@ -27,7 +27,8 @@ export default function SearchBar({ className }: { className?: string }) {
           onChange={(e) => setValue(e.target.value)}
           placeholder="Search tier lists…"
           aria-label="Search tier lists"
-          className="h-9 w-full rounded-md border border-zinc-700 bg-zinc-900 pl-8 pr-3 text-sm text-white placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+          className="h-9 w-full rounded-md border border-zinc-700 bg-zinc-900 pl-8 pr-3 text-sm text-white
+          placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none [&::-webkit-search-cancel-button]:appearance-none"
         />
       </div>
     </form>

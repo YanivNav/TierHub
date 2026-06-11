@@ -3,7 +3,6 @@ import {
   Card,
   CardHeader,
   CardTitle,
-  CardDescription,
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,11 +32,6 @@ export default function DiscoverListCard({
             {list.title}
           </Link>
         </CardTitle>
-        {list.description && (
-          <CardDescription className="line-clamp-2 text-zinc-400">
-            {list.description}
-          </CardDescription>
-        )}
       </CardHeader>
       <CardFooter className="flex items-center justify-between border-t border-zinc-800 pt-3">
         <div className="flex min-w-0 items-center gap-2 text-xs text-zinc-400">

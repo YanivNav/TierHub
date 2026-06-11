@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSignIn } from "@clerk/nextjs";
-import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
+import { getAuthErrorMessage } from "@/lib/auth-errors";
 import type { OAuthStrategy } from "@clerk/types";
 
 const PROVIDERS: {
@@ -74,11 +74,7 @@ export default function OAuthButtons() {
       });
     } catch (err) {
       setPending(null);
-      setError(
-        isClerkAPIResponseError(err)
-          ? (err.errors[0]?.longMessage ?? err.errors[0]?.message ?? "Could not continue")
-          : "Could not continue"
-      );
+      setError(getAuthErrorMessage(err, "oauth"));
     }
   };
 

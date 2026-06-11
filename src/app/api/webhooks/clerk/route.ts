@@ -3,6 +3,7 @@ import { Webhook } from "svix";
 import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
+import { deriveUsername, resolveUniqueUsername } from "@/lib/auth";
 
 type ClerkUserEvent = {
   type: "user.created" | "user.updated" | "user.deleted";
@@ -52,10 +53,13 @@ export async function POST(req: Request) {
       (e) => e.id === data.primary_email_address_id
     )?.email_address ?? "";
 
-    const username =
-      data.username ??
-      data.first_name?.toLowerCase() ??
-      `user_${data.id.slice(-6)}`;
+    const base = deriveUsername({
+      username: data.username,
+      email: primaryEmail,
+      firstName: data.first_name,
+      id: data.id,
+    });
+    const username = await resolveUniqueUsername(base, data.id);
 
     await db
       .insert(users)

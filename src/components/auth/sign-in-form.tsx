@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSignIn } from "@clerk/nextjs";
-import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
+import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -36,11 +36,7 @@ export default function SignInForm() {
         setSubmitting(false);
       }
     } catch (err) {
-      setError(
-        isClerkAPIResponseError(err)
-          ? (err.errors[0]?.longMessage ?? err.errors[0]?.message ?? "Invalid email or password")
-          : "Something went wrong. Please try again."
-      );
+      setError(getAuthErrorMessage(err, "sign-in"));
       setSubmitting(false);
     }
   };
