@@ -4,11 +4,9 @@ import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/server/db";
 import { items, tierLists } from "@/server/db/schema";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import DeleteListButton from "@/components/delete-list-button";
-import TierCardThumbnail from "@/components/tier-card-thumbnail";
+import TierListCard from "@/components/tier-list-card";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -59,57 +57,32 @@ export default async function DashboardPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {lists.map((list) => (
-              <Card
+              <TierListCard
                 key={list.id}
-                className="flex flex-col overflow-hidden border-zinc-800 bg-zinc-900 pt-0 text-white"
-              >
-                <Link href={`/tier-lists/${list.id}`} className="block">
-                  <TierCardThumbnail
-                    coverImageUrl={list.coverImageUrl}
-                    images={imagesByList.get(list.id) ?? []}
-                    className="border-b border-zinc-800"
-                  />
-                </Link>
-                <CardHeader className="flex-1">
-                  <div className="mb-2 flex items-start justify-between gap-2">
-                    <CardTitle className="text-base leading-snug">
-                      {list.title}
-                    </CardTitle>
-                    <Badge
-                      variant={list.isPublic ? "default" : "secondary"}
-                      className="shrink-0 text-xs"
-                    >
-                      {list.isPublic ? "Public" : "Private"}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardFooter className="flex items-center justify-between border-t border-zinc-800 pt-3">
-                  <span className="text-xs text-zinc-500">
-                    {new Date(list.createdAt).toLocaleDateString()}
+                id={list.id}
+                title={list.title}
+                createdAt={list.createdAt}
+                coverImageUrl={list.coverImageUrl}
+                images={imagesByList.get(list.id) ?? []}
+                badge={
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${list.isPublic ? "bg-blue-600 text-white" : "bg-zinc-700 text-zinc-300"}`}>
+                    {list.isPublic ? "Public" : "Private"}
                   </span>
-                  <div className="flex items-center gap-1">
+                }
+                actions={
+                  <>
                     <DeleteListButton id={list.id} title={list.title} />
-                    <Button
-                      asChild
-                      size="sm"
-                      variant="ghost"
-                      className="text-zinc-400 hover:text-white"
-                    >
+                    <Button asChild size="sm" variant="ghost" className="flex-1 text-zinc-400 hover:text-white">
                       <Link href={`/tier-lists/${list.id}`}>View</Link>
                     </Button>
-                    <Button
-                      asChild
-                      size="sm"
-                      variant="outline"
-                      className="border-zinc-700 text-zinc-300 hover:text-white"
-                    >
+                    <Button asChild size="sm" variant="outline" className="flex-1 border-zinc-700 text-zinc-300 hover:text-white">
                       <Link href={`/dashboard/${list.id}`}>Edit</Link>
                     </Button>
-                  </div>
-                </CardFooter>
-              </Card>
+                  </>
+                }
+              />
             ))}
           </div>
         )}
