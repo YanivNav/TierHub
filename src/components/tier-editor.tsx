@@ -1,11 +1,25 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronUp, ChevronDown, Trash2, Plus } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical, Trash2, Plus } from "lucide-react";
 
 export type PendingTier = {
-  localId: string; // stable React key; equals dbId for existing tiers
-  dbId?: string;   // undefined = new tier not yet in DB
+  localId: string;
+  dbId?: string;
   label: string;
   color: string;
 };
@@ -15,28 +29,38 @@ export default function TierEditor({
   onAdd,
   onUpdate,
   onDelete,
-  onMove,
+  onReorder,
 }: {
   tiers: PendingTier[];
   onAdd: () => void;
   onUpdate: (localId: string, data: { label?: string; color?: string }) => void;
   onDelete: (localId: string) => void;
-  onMove: (localId: string, direction: "up" | "down") => void;
+  onReorder: (activeId: string, overId: string) => void;
 }) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      onReorder(String(active.id), String(over.id));
+    }
+  }
+
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-800">
-      {tiers.map((tier, i) => (
-        <TierRow
-          key={tier.localId}
-          tier={tier}
-          isFirst={i === 0}
-          isLast={i === tiers.length - 1}
-          onUpdate={onUpdate}
-          onDelete={onDelete}
-          onMoveUp={() => onMove(tier.localId, "up")}
-          onMoveDown={() => onMove(tier.localId, "down")}
-        />
-      ))}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={tiers.map((t) => t.localId)} strategy={verticalListSortingStrategy}>
+          {tiers.map((tier, i) => (
+            <TierRow
+              key={tier.localId}
+              tier={tier}
+              isLast={i === tiers.length - 1}
+              onUpdate={onUpdate}
+              onDelete={onDelete}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
 
       <button
         type="button"
@@ -52,27 +76,31 @@ export default function TierEditor({
 
 function TierRow({
   tier,
-  isFirst,
   isLast,
   onUpdate,
   onDelete,
-  onMoveUp,
-  onMoveDown,
 }: {
   tier: PendingTier;
-  isFirst: boolean;
   isLast: boolean;
   onUpdate: (localId: string, data: { label?: string; color?: string }) => void;
   onDelete: (localId: string) => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
 }) {
-  // Keep local label state for smooth typing; sync to parent on blur
   const [label, setLabel] = useState(tier.label);
   const colorRef = useRef<HTMLInputElement>(null);
 
-  // Sync if parent resets the tier (e.g. after move)
   useEffect(() => setLabel(tier.label), [tier.label]);
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: tier.localId,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: "relative" as const,
+    zIndex: isDragging ? 10 : undefined,
+  };
 
   function handleLabelBlur() {
     const trimmed = label.trim();
@@ -81,8 +109,23 @@ function TierRow({
   }
 
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 ${!isLast ? "border-b border-zinc-800" : ""}`}>
-      {/* Color swatch → opens native color picker */}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-3 bg-zinc-900 px-4 py-3 ${!isLast ? "border-b border-zinc-800" : ""}`}
+    >
+      {/* Drag handle */}
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="shrink-0 cursor-grab touch-none text-zinc-600 hover:text-zinc-400 active:cursor-grabbing"
+        tabIndex={-1}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+
+      {/* Color swatch */}
       <button
         type="button"
         onClick={() => colorRef.current?.click()}
@@ -113,35 +156,15 @@ function TierRow({
         placeholder="Tier name"
       />
 
-      {/* Reorder + delete */}
-      <div className="flex items-center gap-0.5">
-        <button
-          type="button"
-          onClick={onMoveUp}
-          disabled={isFirst}
-          title="Move up"
-          className="rounded p-1 text-zinc-500 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-20"
-        >
-          <ChevronUp className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={onMoveDown}
-          disabled={isLast}
-          title="Move down"
-          className="rounded p-1 text-zinc-500 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-20"
-        >
-          <ChevronDown className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete(tier.localId)}
-          title="Delete tier"
-          className="rounded p-1 text-zinc-600 hover:bg-red-500/20 hover:text-red-400"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      {/* Delete */}
+      <button
+        type="button"
+        onClick={() => onDelete(tier.localId)}
+        title="Delete tier"
+        className="rounded p-1 text-zinc-600 hover:bg-red-500/20 hover:text-red-400"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useCallback } from "react";
+import { arrayMove } from "@dnd-kit/sortable";
 import { useRouter } from "next/navigation";
 import { Upload, Type, Video, X, Youtube, Sparkles, Wand2, Play, Loader2, ImageOff } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
@@ -310,15 +311,12 @@ export default function TierListForm({
   const handleDeleteTier = (localId: string) =>
     setPendingTiers((prev) => prev.filter((t) => t.localId !== localId));
 
-  const handleMoveTier = (localId: string, direction: "up" | "down") =>
+  const handleReorderTier = (activeId: string, overId: string) =>
     setPendingTiers((prev) => {
-      const idx = prev.findIndex((t) => t.localId === localId);
-      if (direction === "up" && idx === 0) return prev;
-      if (direction === "down" && idx === prev.length - 1) return prev;
-      const next = [...prev];
-      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-      [next[idx], next[swapIdx]] = [next[swapIdx]!, next[idx]!];
-      return next;
+      const from = prev.findIndex((t) => t.localId === activeId);
+      const to = prev.findIndex((t) => t.localId === overId);
+      if (from === -1 || to === -1) return prev;
+      return arrayMove(prev, from, to);
     });
 
   // ── AI handlers ────────────────────────────────────────────────────────────
@@ -874,7 +872,7 @@ export default function TierListForm({
           onAdd={handleAddTier}
           onUpdate={handleUpdateTier}
           onDelete={handleDeleteTier}
-          onMove={handleMoveTier}
+          onReorder={handleReorderTier}
         />
       </div>
       <Separator className="bg-zinc-800" />
