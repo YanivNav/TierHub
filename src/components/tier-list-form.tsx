@@ -28,7 +28,6 @@ function withResolvedMedia(item: PendingItem, result: MediaResult): PendingItem 
   const base = {
     ...item,
     file: undefined,
-    videoQuery: undefined,
     mediaDirty: item.dbId !== undefined ? true : item.mediaDirty,
   };
   if (result.type === "image") {
@@ -38,6 +37,32 @@ function withResolvedMedia(item: PendingItem, result: MediaResult): PendingItem 
     return { ...base, type: "video", videoUrl: result.youtubeUrl, imageUrl: undefined, previewUrl: result.previewUrl };
   }
   return { ...base, type: "text", imageUrl: undefined, videoUrl: undefined };
+}
+
+/** Cap on simultaneous media lookups — fast, but gentle on Wikipedia/YouTube. */
+const MAX_CONCURRENT_MEDIA = 4;
+
+/** Minimal counting semaphore for bounding concurrent async work. */
+function createSemaphore(max: number) {
+  let active = 0;
+  const queue: (() => void)[] = [];
+  const acquire = () =>
+    new Promise<void>((resolve) => {
+      if (active < max) {
+        active++;
+        resolve();
+      } else {
+        queue.push(() => {
+          active++;
+          resolve();
+        });
+      }
+    });
+  const release = () => {
+    active--;
+    queue.shift()?.();
+  };
+  return { acquire, release };
 }
 
 type ExistingItemData = {
@@ -67,10 +92,8 @@ type PendingItem = {
   imageUrl?: string;
   /** Thumbnail shown in the list (blob URL for images, YouTube thumbnail for YT videos) */
   previewUrl?: string;
-  /** AI-classified video awaiting lazy resolution — the YouTube search query to use */
-  videoQuery?: string;
-  /** AI-generated disambiguating Wikipedia search query for image items */
-  wikipediaQuery?: string;
+  /** Model-provided disambiguated search query (Wikipedia or YouTube) */
+  searchQuery?: string;
   labelDirty: boolean;
   /** True when type/imageUrl/videoUrl/file was changed on an existing (dbId) item */
   mediaDirty?: boolean;
@@ -162,6 +185,7 @@ export default function TierListForm({
 
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [enrichingItems, setEnrichingItems] = useState<Set<string>>(new Set());
   const [previewVideoLocalId, setPreviewVideoLocalId] = useState<string | null>(null);
   const [mediaDialogLocalId, setMediaDialogLocalId] = useState<string | null>(null);
@@ -177,7 +201,6 @@ export default function TierListForm({
   const deleteItem = trpc.item.delete.useMutation();
 
   // AI
-  const generateItems = trpc.ai.generateItems.useMutation();
   const enrichItem = trpc.ai.enrichItem.useMutation();
   const trpcUtils = trpc.useUtils();
 
@@ -325,39 +348,55 @@ export default function TierListForm({
     const prompt = aiPrompt.trim() || undefined;
     if (!prompt && !title.trim()) return;
     setAiError(null);
+    setIsGenerating(true);
+
+    // Phase 2 runs alongside Phase 1: image lookups are dispatched as each item
+    // streams in, but a semaphore caps concurrency so a large list (e.g. 45
+    // politicians) doesn't hammer Wikipedia all at once.
+    const sem = createSemaphore(MAX_CONCURRENT_MEDIA);
+    const mediaTasks: Promise<void>[] = [];
+
     try {
       const existingItems = pendingItems.map((i) => i.label || i.type);
-      // Phase 1: names + classification only (no media URLs yet).
-      const aiItems = await generateItems.mutateAsync({
+      // Phase 1: stream names + classification as the model produces them.
+      const stream = await trpcUtils.client.ai.generateItems.mutate({
         prompt,
         title: title.trim() || undefined,
         description: description.trim() || undefined,
         existingItems,
       });
-      const newItems: PendingItem[] = aiItems.map((item) => ({
-        localId: crypto.randomUUID(),
-        type: item.type,
-        label: item.name,
-        videoQuery: item.type === "video" ? item.youtubeSearchQuery ?? undefined : undefined,
-        wikipediaQuery: item.type === "image" ? item.wikipediaSearchQuery ?? undefined : undefined,
-        labelDirty: false,
-      }));
 
-      setPendingItems((prev) => [...prev, ...newItems]);
+      for await (const item of stream) {
+        const localId = crypto.randomUUID();
+        const searchQuery = item.searchQuery ?? undefined;
+        setPendingItems((prev) => [
+          ...prev,
+          { localId, type: item.type, label: item.name, searchQuery, labelDirty: false },
+        ]);
 
-      // Phase 2: resolve images lazily, staggered to avoid hitting Wikipedia's
-      // rate limit when generating large lists (e.g. 45 politicians at once).
-      void (async () => {
-        for (const item of newItems) {
-          if (item.type === "image") {
-            void runResolveMedia(item.localId, item.label, "image", null, item.wikipediaQuery);
-            await new Promise((res) => setTimeout(res, 120));
-          }
+        // Resolve images progressively (no LLM call — pure Wikipedia fetch).
+        // Videos stay on-demand to conserve the YouTube Data API quota.
+        if (item.type === "image") {
+          mediaTasks.push(
+            (async () => {
+              await sem.acquire();
+              try {
+                await runResolveMedia(localId, item.name, "image", searchQuery);
+              } finally {
+                sem.release();
+              }
+            })()
+          );
         }
-      })();
+      }
     } catch {
       setAiError("Couldn't generate items. Please try again later.");
+    } finally {
+      setIsGenerating(false);
     }
+
+    // Let in-flight image lookups settle (errors are handled inside).
+    await Promise.allSettled(mediaTasks);
   };
 
   /** Phase 2: fetch the real media URL for an already-classified item. */
@@ -365,13 +404,16 @@ export default function TierListForm({
     localId: string,
     name: string,
     type: ItemType,
-    youtubeSearchQuery: string | null,
-    wikipediaSearchQuery?: string | null,
+    searchQuery?: string,
   ) => {
     if (!name.trim()) return;
     setEnrichingItems((prev) => new Set(prev).add(localId));
     try {
-      const result = await trpcUtils.client.ai.resolveMedia.query({ name: name.trim(), type, youtubeSearchQuery, wikipediaSearchQuery });
+      const result = await trpcUtils.client.ai.resolveMedia.query({
+        name: name.trim(),
+        type,
+        searchQuery: searchQuery || undefined,
+      });
       setPendingItems((prev) =>
         prev.map((item) => (item.localId === localId ? withResolvedMedia(item, result) : item))
       );
@@ -890,19 +932,19 @@ export default function TierListForm({
             onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAiGenerate())}
             placeholder='e.g. "Best Pixar movies" or "Programming languages"'
             className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-zinc-500"
-            disabled={generateItems.isPending}
+            disabled={isGenerating}
           />
           <Button
             type="button"
             onClick={() => handleAiGenerate()}
-            disabled={(!aiPrompt.trim() && !title.trim()) || generateItems.isPending}
+            disabled={(!aiPrompt.trim() && !title.trim()) || isGenerating}
             className="shrink-0 bg-violet-600 hover:bg-violet-500 text-white"
           >
             <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-            {generateItems.isPending ? "Generating…" : "Generate"}
+            {isGenerating ? "Generating…" : "Generate"}
           </Button>
         </div>
-        {generateItems.isPending && (
+        {isGenerating && (
           <div className="relative h-0.5 overflow-hidden rounded-full bg-zinc-700">
             <div className="absolute h-full w-2/5 rounded-full bg-violet-500 animate-indeterminate" />
           </div>
@@ -996,7 +1038,7 @@ export default function TierListForm({
               const isEnriching = enrichingItems.has(item.localId);
               const hasVideo = item.type === "video" && (item.videoUrl ?? item.file);
               const needsVideoLoad =
-                item.type === "video" && !item.previewUrl && !item.file && !!item.videoQuery;
+                item.type === "video" && !item.previewUrl && !item.file;
               return (
                 <div key={item.localId} className="flex flex-col">
                   <div className="flex items-center gap-3 p-3">
@@ -1008,7 +1050,7 @@ export default function TierListForm({
                       ) : needsVideoLoad ? (
                         <button
                           type="button"
-                          onClick={() => runResolveMedia(item.localId, item.label, "video", item.videoQuery!)}
+                          onClick={() => runResolveMedia(item.localId, item.label, "video", item.searchQuery)}
                           disabled={isEnriching}
                           title="Load video from YouTube"
                           className="flex h-full w-full items-center justify-center text-red-500 hover:bg-zinc-600/50 transition-colors"
@@ -1020,7 +1062,7 @@ export default function TierListForm({
                       ) : item.type === "image" ? (
                         <button
                           type="button"
-                          onClick={() => runResolveMedia(item.localId, item.label, "image", null, item.wikipediaQuery)}
+                          onClick={() => runResolveMedia(item.localId, item.label, "image", item.searchQuery)}
                           title="No image found — this item may not have a Wikipedia page. Click to retry."
                           className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-500/20 to-blue-600/20 transition-colors hover:from-blue-500/40 hover:to-blue-600/40"
                         >
