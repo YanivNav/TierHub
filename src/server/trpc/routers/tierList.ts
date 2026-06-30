@@ -110,43 +110,47 @@ export const tierListRouter = createTRPCRouter({
       });
       if (!source) throw new Error("Not found");
 
-      // Create new tier list owned by the current user
-      const [newList] = await ctx.db
-        .insert(tierLists)
-        .values({
-          userId: ctx.userId,
-          title: source.title,
-          description: source.description ?? undefined,
-          isPublic: false,
-          remixedFromId: source.id,
-        })
-        .returning();
-
-      // Insert tiers and build old→new ID map
-      const tierIdMap = new Map<string, string>();
-      for (const tier of source.tiers) {
-        const [newTier] = await ctx.db
-          .insert(tiers)
-          .values({ tierListId: newList!.id, label: tier.label, color: tier.color, rank: tier.rank })
+      // Atomic: list + tiers + items are created together or not at all, so a
+      // mid-copy failure can't leave an orphaned half-list.
+      return ctx.db.transaction(async (tx) => {
+        // Create new tier list owned by the current user
+        const [newList] = await tx
+          .insert(tierLists)
+          .values({
+            userId: ctx.userId,
+            title: source.title,
+            description: source.description ?? undefined,
+            isPublic: false,
+            remixedFromId: source.id,
+          })
           .returning();
-        tierIdMap.set(tier.id, newTier!.id);
-      }
 
-      // Insert items with remapped tier IDs
-      if (source.items.length > 0) {
-        await ctx.db.insert(items).values(
-          source.items.map((item) => ({
-            tierListId: newList!.id,
-            tierId: item.tierId ? (tierIdMap.get(item.tierId) ?? null) : null,
-            label: item.label,
-            type: item.type,
-            imageUrl: item.imageUrl ?? undefined,
-            videoUrl: item.videoUrl ?? undefined,
-            rank: item.rank,
-          }))
-        );
-      }
+        // Insert tiers and build old→new ID map
+        const tierIdMap = new Map<string, string>();
+        for (const tier of source.tiers) {
+          const [newTier] = await tx
+            .insert(tiers)
+            .values({ tierListId: newList!.id, label: tier.label, color: tier.color, rank: tier.rank })
+            .returning();
+          tierIdMap.set(tier.id, newTier!.id);
+        }
 
-      return { id: newList!.id };
+        // Insert items with remapped tier IDs
+        if (source.items.length > 0) {
+          await tx.insert(items).values(
+            source.items.map((item) => ({
+              tierListId: newList!.id,
+              tierId: item.tierId ? (tierIdMap.get(item.tierId) ?? null) : null,
+              label: item.label,
+              type: item.type,
+              imageUrl: item.imageUrl ?? undefined,
+              videoUrl: item.videoUrl ?? undefined,
+              rank: item.rank,
+            }))
+          );
+        }
+
+        return { id: newList!.id };
+      });
     }),
 });
