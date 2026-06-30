@@ -121,7 +121,7 @@ export default function ConnectionsSection() {
         })}
       </ul>
 
-      {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+      <p className="mt-3 text-sm text-red-400">{error || " "}</p>
     </section>
   );
 }

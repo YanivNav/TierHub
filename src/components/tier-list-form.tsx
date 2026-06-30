@@ -1164,7 +1164,7 @@ export default function TierListForm({
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      <p className="text-sm text-red-400 min-h-5">{error || " "}</p>
 
       <Separator className="bg-border" />
 

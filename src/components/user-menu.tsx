@@ -36,7 +36,6 @@ export default function UserMenu() {
   }
 
   const email = user.primaryEmailAddress?.emailAddress ?? "";
-  console.log(user)
   const name = user.fullName ?? user.firstName ?? user.username ?? email.split("@")[0] ?? "Account";
   const initial = (name[0] ?? "?").toUpperCase();
 

@@ -46,6 +46,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import ScreenshotButton from "@/components/screenshot-button";
 
 type ItemType = "text" | "image" | "video";
 
@@ -112,6 +113,7 @@ export default function TierBoard({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [previewVideoId, setPreviewVideoId] = useState<string | null>(null);
+  const captureRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   // Container the dragged item started in, so we know which lists to persist.
@@ -320,6 +322,7 @@ export default function TierBoard({
               </>
             )}
           </button>
+          <ScreenshotButton captureRef={captureRef} />
           <button
             onClick={handleCopyLink}
             className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground"
@@ -348,7 +351,7 @@ export default function TierBoard({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="overflow-hidden rounded-xl border border-border">
+        <div ref={captureRef} className="overflow-hidden rounded-xl border border-border">
           {initialTiers.map((tier, i) => (
             <TierRow
               key={tier.id}
@@ -420,7 +423,7 @@ function TierRow({
         style={{ backgroundColor: tier.color + "22", borderRight: `3px solid ${tier.color}` }}
       >
         <span
-          className={`w-full break-words text-center leading-tight ${tierLabelSize(tier.label)}`}
+          className={`w-full wrap-break-words text-center leading-tight ${tierLabelSize(tier.label)}`}
           style={{ color: tier.color, fontFamily: "system-ui, sans-serif" }}
         >
           {tier.label}

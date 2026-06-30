@@ -77,7 +77,7 @@ export default function DangerSection() {
             autoComplete="off"
           />
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          <p className="text-sm text-red-400">{error || " "}</p>
 
           <DialogFooter>
             <Button

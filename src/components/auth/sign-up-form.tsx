@@ -88,7 +88,7 @@ export default function SignUpForm() {
             />
           </div>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          <p className="text-sm text-red-400">{error || " "}</p>
 
           <Button
             type="submit"
@@ -160,7 +160,7 @@ export default function SignUpForm() {
           />
         </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        <p className="text-sm text-red-400">{error || " "}</p>
 
         {/* Clerk Smart CAPTCHA mounts here when bot protection is enabled */}
         <div id="clerk-captcha" />
