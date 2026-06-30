@@ -9,7 +9,7 @@ const GENERIC = "Something went wrong. Please try again.";
  *
  * The guiding rule is to avoid account enumeration: on sign-in we never reveal
  * whether it was the email or the password that was wrong, nor whether the
- * account exists at all — every credential failure returns one neutral message.
+ * account exists at all - every credential failure returns one neutral message.
  */
 export function getAuthErrorMessage(err: unknown, context: AuthContext): string {
   if (!isClerkAPIResponseError(err)) return GENERIC;

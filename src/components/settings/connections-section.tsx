@@ -17,7 +17,7 @@ export default function ConnectionsSection() {
   const [busy, setBusy] = useState<OAuthStrategy | null>(null);
   const [error, setError] = useState("");
 
-  // Disconnecting an account is sensitive — wrap it so Clerk can require a
+  // Disconnecting an account is sensitive - wrap it so Clerk can require a
   // recent sign-in (step-up) if the instance is configured for it.
   const destroyAccount = useReverification((account: ExternalAccountResource) =>
     account.destroy()

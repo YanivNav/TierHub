@@ -39,7 +39,7 @@ function withResolvedMedia(item: PendingItem, result: MediaResult): PendingItem 
   return { ...base, type: "text", imageUrl: undefined, videoUrl: undefined };
 }
 
-/** Cap on simultaneous media lookups — fast, but gentle on Wikipedia/YouTube. */
+/** Cap on simultaneous media lookups - fast, but gentle on Wikipedia/YouTube. */
 const MAX_CONCURRENT_MEDIA = 4;
 
 /** Minimal counting semaphore for bounding concurrent async work. */
@@ -86,9 +86,9 @@ type PendingItem = {
   type: ItemType;
   label: string;
   file?: File;
-  /** For YouTube or other pre-existing video URLs — no file upload needed */
+  /** For YouTube or other pre-existing video URLs - no file upload needed */
   videoUrl?: string;
-  /** For AI-provided or other external image URLs — no file upload needed */
+  /** For AI-provided or other external image URLs - no file upload needed */
   imageUrl?: string;
   /** Thumbnail shown in the list (blob URL for images, YouTube thumbnail for YT videos) */
   previewUrl?: string;
@@ -318,7 +318,7 @@ export default function TierListForm({
     [addFiles]
   );
 
-  // ── Tier handlers (local state only — no mutations yet) ────────────────────
+  // ── Tier handlers (local state only - no mutations yet) ────────────────────
 
   const handleAddTier = () =>
     setPendingTiers((prev) => [
@@ -374,7 +374,7 @@ export default function TierListForm({
           { localId, type: item.type, label: item.name, searchQuery, labelDirty: false },
         ]);
 
-        // Resolve images progressively (no LLM call — pure Wikipedia fetch).
+        // Resolve images progressively (no LLM call - pure Wikipedia fetch).
         // Videos stay on-demand to conserve the YouTube Data API quota.
         if (item.type === "image") {
           mediaTasks.push(
@@ -602,7 +602,7 @@ export default function TierListForm({
 
         await uploadAndSaveItems(list.id, pendingItems);
 
-        // Cover image — the list now exists, so we can upload and attach it.
+        // Cover image - the list now exists, so we can upload and attach it.
         if (coverFile) {
           const coverImageUrl = await uploadCover(list.id, coverFile);
           await updateTierList.mutateAsync({ id: list.id, coverImageUrl });
@@ -683,7 +683,7 @@ export default function TierListForm({
               }
               if (p.mediaDirty) {
                 if (p.file) {
-                  // New file attached to existing item — upload to S3 first
+                  // New file attached to existing item - upload to S3 first
                   const { uploadUrl, publicUrl } = await getUploadUrl.mutateAsync({
                     tierListId: tierListId!,
                     filename: p.file.name,
@@ -741,15 +741,15 @@ export default function TierListForm({
         if (item.type === "text") {
           return { label: item.label || "Untitled", type: "text" as const };
         }
-        // Pre-existing URL (YouTube etc.) — skip upload
+        // Pre-existing URL (YouTube etc.) - skip upload
         if (item.videoUrl && !item.file) {
           return { label: item.label || "Video", type: "video" as const, videoUrl: item.videoUrl, imageUrl: item.previewUrl };
         }
-        // External image URL (e.g. AI-provided Wikipedia image) — skip upload
+        // External image URL (e.g. AI-provided Wikipedia image) - skip upload
         if (item.imageUrl && !item.file) {
           return { label: item.label || "Image", type: "image" as const, imageUrl: item.imageUrl };
         }
-        // No uploaded file and no resolved media URL yet — e.g. an AI-generated
+        // No uploaded file and no resolved media URL yet - e.g. an AI-generated
         // image whose Wikipedia lookup is still in flight when the user hits save.
         // Persist the label + type without media; it can be enriched later in edit.
         if (!item.file) {
@@ -838,7 +838,7 @@ export default function TierListForm({
         />
       </div>
 
-      {/* Cover image — manual thumbnail (collage/icon fallback if empty) */}
+      {/* Cover image - manual thumbnail (collage/icon fallback if empty) */}
       <div className="space-y-2">
         <Label>
           Cover image <span className="text-muted-foreground">(optional)</span>
@@ -965,7 +965,7 @@ export default function TierListForm({
                         <button
                           type="button"
                           onClick={() => runResolveMedia(item.localId, item.label, "image", item.searchQuery)}
-                          title="No image found — this item may not have a Wikipedia page. Click to retry."
+                          title="No image found - this item may not have a Wikipedia page. Click to retry."
                           className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-500/20 to-blue-600/20 transition-colors hover:from-blue-500/40 hover:to-blue-600/40"
                         >
                           <ImageOff className="h-4 w-4 text-blue-400/70" />
@@ -1004,7 +1004,7 @@ export default function TierListForm({
                       )}
                       {item.type === "image" && !item.previewUrl && !item.file && !isEnriching && (
                         <p className="mt-0.5 text-xs text-amber-500/80">
-                          No image found — retry or upload one
+                          No image found - retry or upload one
                         </p>
                       )}
                     </div>
@@ -1227,13 +1227,13 @@ export default function TierListForm({
         <Dialog open={!!mediaDialogLocalId} onOpenChange={(open) => { if (!open) { setMediaDialogLocalId(null); setItemYoutubeInput(""); setItemYoutubeError(null); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
-              <DialogTitle>Edit media — {item?.label || "item"}</DialogTitle>
+              <DialogTitle>Edit media - {item?.label || "item"}</DialogTitle>
             </DialogHeader>
             {item && (
               <div className="space-y-4 pt-1">
                 {isUnresolvedImage && !isEnriching && (
                   <div className="rounded-lg border border-amber-700/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-300/90">
-                    No image was found for this item — it may not have a Wikipedia
+                    No image was found for this item - it may not have a Wikipedia
                     page. Try a more specific label and{" "}
                     <span className="font-medium">Find media with AI</span>, or
                     upload an image yourself.
@@ -1284,7 +1284,7 @@ export default function TierListForm({
                   {isEnriching ? "Finding media…" : "Find media with AI"}
                 </button>
 
-                {/* Remove media — only when there's actually media attached */}
+                {/* Remove media - only when there's actually media attached */}
                 {item.type !== "text" && hasMedia && (
                   <button
                     type="button"

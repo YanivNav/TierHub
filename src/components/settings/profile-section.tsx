@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 function validateUsername(v: string): string {
-  if (v.length < 3 || v.length > 30) return "Username must be 3–30 characters.";
+  if (v.length < 3 || v.length > 30) return "Username must be 3-30 characters.";
   if (!/^[a-zA-Z0-9_]+$/.test(v)) return "Only letters, numbers and underscores.";
   return "";
 }

@@ -60,7 +60,7 @@ export async function getThumbnailImages(
   return map;
 }
 
-// Correlated scalar subqueries — kept separate (not GROUP BY joins) so views and
+// Correlated scalar subqueries - kept separate (not GROUP BY joins) so views and
 // remixes don't multiply into a cartesian product. Raw column names are used for
 // the inner alias so the self-join on tier_lists is unambiguous.
 function viewCountSql(since?: Date) {
@@ -120,7 +120,7 @@ export async function getNewRandomLists(limit: number): Promise<DiscoverList[]> 
   const recent = await pick(windowCutoff(NEW_RECENCY_DAYS));
   if (recent.length >= limit) return recent;
 
-  // Not enough recent lists — top up from all public, de-duped.
+  // Not enough recent lists - top up from all public, de-duped.
   const all = await pick();
   const seen = new Set(recent.map((r) => r.id));
   const merged = [...recent];

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import TierListCard from "@/components/tier-list-card";
 import type { DiscoverList } from "@/server/db/discover";
 
-/** Public-facing tier list card (thumbnail, title, author, View) — no owner actions. */
+/** Public-facing tier list card (thumbnail, title, author, View) - no owner actions. */
 export default function DiscoverListCard({
   list,
   images,

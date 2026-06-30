@@ -32,7 +32,7 @@ export const tierLists = pgTable(
   (t) => [index("tier_lists_remixed_from_idx").on(t.remixedFromId)]
 );
 
-// Records each view of a public tier list — drives trending/top rankings.
+// Records each view of a public tier list - drives trending/top rankings.
 export const tierListViews = pgTable(
   "tier_list_views",
   {

@@ -27,15 +27,15 @@ export type AiItem = z.infer<typeof AiItemSchema>;
 const SYSTEM_PROMPT =
   "You are a helpful AI assistant for TierHub, an app where users create and share tier lists. You generate items and classify them with appropriate media types. Be concise.\n\n" +
   'Media types:\n' +
-  '- "image" — well-known visual (movie, celebrity, landmark, brand, etc.). Always include "searchQuery" with a specific, disambiguated English Wikipedia search (e.g. "Eli Cohen Israeli politician" not "Eli Cohen", "Iron Man 2008 film poster" not "Iron Man").\n' +
-  '- "video" — best as video (music video, trailer, theme song, etc.). Include "searchQuery" with a precise YouTube search (e.g. "Queen Bohemian Rhapsody official music video").\n' +
-  '- "text" — no media appropriate. Omit "searchQuery".';
+  '- "image" - well-known visual (movie, celebrity, landmark, brand, etc.). Always include "searchQuery" with a specific, disambiguated English Wikipedia search (e.g. "Eli Cohen Israeli politician" not "Eli Cohen", "Iron Man 2008 film poster" not "Iron Man").\n' +
+  '- "video" - best as video (music video, trailer, theme song, etc.). Include "searchQuery" with a precise YouTube search (e.g. "Queen Bohemian Rhapsody official music video").\n' +
+  '- "text" - no media appropriate. Omit "searchQuery".';
 
 const COUNT_INSTRUCTION =
-  "Choose the count based on the topic: return the complete set if it is finite and well-defined, otherwise cap at 10–15 of the best/most representative items.";
+  "Choose the count based on the topic: return the complete set if it is finite and well-defined, otherwise cap at 10-15 of the best/most representative items.";
 
 const SEARCH_QUERY_INSTRUCTION =
-  'For image items, always include a "searchQuery" — a specific disambiguated English Wikipedia search (e.g. "Eli Cohen Israeli politician" not "Eli Cohen"). For video items, include a precise YouTube search query (e.g. "Bohemian Rhapsody official music video"). For text items, omit searchQuery.';
+  'For image items, always include a "searchQuery" - a specific disambiguated English Wikipedia search (e.g. "Eli Cohen Israeli politician" not "Eli Cohen"). For video items, include a precise YouTube search query (e.g. "Bohemian Rhapsody official music video"). For text items, omit searchQuery.';
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
@@ -65,7 +65,7 @@ function buildGeneratePrompt(input: GenerateItemsInput): string {
  * Phase 1: Stream tier list items as the model produces them.
  * Yields each item (name + type + optional searchQuery) the moment it's
  * complete via the AI SDK's array `elementStream`, so the UI can render names
- * progressively. No media URLs — resolve those lazily via {@link resolveMedia},
+ * progressively. No media URLs - resolve those lazily via {@link resolveMedia},
  * or use {@link enrichItem} for AI-driven classification + media in one call.
  */
 export async function* generateItemsStream(
@@ -135,7 +135,7 @@ export interface ResolveMediaInput {
 
 /**
  * Phase 2 (lazy): Resolve the media URL for an already-classified item.
- * Pure data fetch — uses the model-provided search query if available,
+ * Pure data fetch - uses the model-provided search query if available,
  * falls back to the item name. No model call.
  */
 export async function resolveMedia(input: ResolveMediaInput): Promise<ResolvedMedia> {

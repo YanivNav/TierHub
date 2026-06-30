@@ -59,7 +59,7 @@ export async function resolveUniqueUsername(base: string, id: string): Promise<s
  * Guarantees a `users` row exists for the currently authenticated Clerk user.
  *
  * Cheap path: a single primary-key lookup. The Clerk API is only hit when the
- * row is missing — which happens in local dev (webhook can't reach localhost)
+ * row is missing - which happens in local dev (webhook can't reach localhost)
  * or if a `user.created` webhook was ever dropped. This keeps inserts that hold
  * a foreign key to `users.id` from failing.
  */

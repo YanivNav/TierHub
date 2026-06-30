@@ -42,7 +42,7 @@ export default async function HomePage() {
   return (
     <main className="flex-1 bg-background text-foreground">
       {/* Slim hero */}
-      <section className="bg-gradient-to-b from-muted to-background px-4 py-12 text-center">
+      <section className="bg-linear-to-b from-muted to-background px-4 py-12 text-center">
         <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
           Tier<span className="text-blue-500">Hub</span>
         </h1>

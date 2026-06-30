@@ -12,7 +12,7 @@ export async function searchWikipediaImage(query: string): Promise<string | null
     const searchRes = await fetch(searchUrl, { headers: WIKIPEDIA_HEADERS });
     if (!searchRes.ok) {
       const body = await searchRes.text().catch(() => "");
-      console.warn(`[wikipedia] search HTTP ${searchRes.status} for "${query}" — ${body.slice(0, 200)}`);
+      console.warn(`[wikipedia] search HTTP ${searchRes.status} for "${query}" - ${body.slice(0, 200)}`);
       return null;
     }
     const searchData = await searchRes.json() as {
@@ -36,7 +36,7 @@ export async function searchWikipediaImage(query: string): Promise<string | null
       );
       if (!summaryRes.ok) {
         const body = await summaryRes.text().catch(() => "");
-        console.warn(`[wikipedia] summary HTTP ${summaryRes.status} for "${page.title}" — ${body.slice(0, 200)}`);
+        console.warn(`[wikipedia] summary HTTP ${summaryRes.status} for "${page.title}" - ${body.slice(0, 200)}`);
         return null;
       }
       const summaryData = await summaryRes.json() as { thumbnail?: { source: string } };
@@ -64,7 +64,7 @@ export async function searchYouTubeVideo(query: string): Promise<{
 } | null> {
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) {
-    console.warn("[youtube] YOUTUBE_API_KEY is not set — skipping video resolution");
+    console.warn("[youtube] YOUTUBE_API_KEY is not set - skipping video resolution");
     return null;
   }
   try {
@@ -72,7 +72,7 @@ export async function searchYouTubeVideo(query: string): Promise<{
     const res = await fetch(url);
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.warn(`[youtube] search HTTP ${res.status} for "${query}" — ${body.slice(0, 300)}`);
+      console.warn(`[youtube] search HTTP ${res.status} for "${query}" - ${body.slice(0, 300)}`);
       return null;
     }
     const data = await res.json() as {
@@ -108,7 +108,7 @@ export type ResolvedMedia =
 /**
  * Resolve media for an already-classified item. Uses the model-provided
  * search query if available, falls back to the item name.
- * Pure data fetch — no LLM call.
+ * Pure data fetch - no LLM call.
  */
 export async function resolveItemMedia(item: {
   name: string;

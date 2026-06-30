@@ -2,7 +2,7 @@ import { Pool, neonConfig } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import * as schema from "./schema";
 
-// WebSocket driver — unlike neon-http, this supports interactive transactions
+// WebSocket driver - unlike neon-http, this supports interactive transactions
 // (db.transaction with logic between statements), needed for atomic multi-row
 // writes like tierList.duplicate.
 //

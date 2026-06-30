@@ -55,7 +55,7 @@ export default function TopBar() {
           ))}
         </nav>
 
-        {/* Search — flexes to fill the middle on wider screens.
+        {/* Search - flexes to fill the middle on wider screens.
             Suspense satisfies Next's useSearchParams static-render requirement. */}
         <Suspense
           fallback={<div className="hidden h-9 max-w-md flex-1 md:block" />}

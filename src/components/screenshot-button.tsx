@@ -72,7 +72,7 @@ export default function ScreenshotButton({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard write failed — not supported or permission denied
+      // Clipboard write failed - not supported or permission denied
     }
   }
 

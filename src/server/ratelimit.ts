@@ -4,7 +4,7 @@ import { Redis } from "@upstash/redis";
 import { TRPCError } from "@trpc/server";
 
 // Shared Upstash Redis client. When the env vars are absent (local dev, or
-// before Upstash is provisioned) we fail open — no limiting — mirroring how
+// before Upstash is provisioned) we fail open - no limiting - mirroring how
 // resolve-media treats a missing YOUTUBE_API_KEY.
 const url = process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -12,7 +12,7 @@ const redis = url && token ? new Redis({ url, token }) : null;
 
 if (!redis) {
   console.warn(
-    "[ratelimit] Upstash not configured — AI rate limiting disabled (fail-open)."
+    "[ratelimit] Upstash not configured - AI rate limiting disabled (fail-open)."
   );
 }
 
@@ -26,9 +26,9 @@ function makeLimiter(tokens: number, window: Duration, prefix: string) {
   });
 }
 
-// Expensive LLM generation — keep tight.
+// Expensive LLM generation - keep tight.
 const generateLimiter = makeLimiter(10, "1 m", "ai-generate");
-// Per-item media resolution (Wikipedia/YouTube) — looser, but still capped so a
+// Per-item media resolution (Wikipedia/YouTube) - looser, but still capped so a
 // single user can't burn the YouTube Data API daily quota.
 const mediaLimiter = makeLimiter(60, "1 m", "ai-media");
 
