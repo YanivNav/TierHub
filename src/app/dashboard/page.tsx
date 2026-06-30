@@ -1,9 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/server/db";
-import { items, tierLists } from "@/server/db/schema";
+import { tierLists } from "@/server/db/schema";
+import { getThumbnailImages } from "@/server/db/discover";
 import { Button } from "@/components/ui/button";
 import DeleteListButton from "@/components/delete-list-button";
 import TierListCard from "@/components/tier-list-card";
@@ -18,26 +19,9 @@ export default async function DashboardPage() {
     .where(eq(tierLists.userId, userId))
     .orderBy(desc(tierLists.createdAt));
 
-  // Fetch item images for all lists in one query, then group — used to build a
-  // collage thumbnail at render time (no stored/generated thumbnail needed).
-  const listIds = lists.map((l) => l.id);
-  const imageRows = listIds.length
-    ? await db
-        .select({ tierListId: items.tierListId, imageUrl: items.imageUrl })
-        .from(items)
-        .where(and(inArray(items.tierListId, listIds), isNotNull(items.imageUrl)))
-        .orderBy(asc(items.rank), asc(items.createdAt))
-    : [];
-
-  const imagesByList = new Map<string, string[]>();
-  for (const row of imageRows) {
-    if (!row.imageUrl) continue;
-    const arr = imagesByList.get(row.tierListId) ?? [];
-    if (arr.length < 4) {
-      arr.push(row.imageUrl);
-      imagesByList.set(row.tierListId, arr);
-    }
-  }
+  // Collage thumbnails: up to 4 item images per list, one batched query.
+  // Shared with the Discover feeds so the grouping logic stays in one place.
+  const imagesByList = await getThumbnailImages(lists.map((l) => l.id));
 
   return (
     <main className="flex-1 bg-zinc-950 p-8 text-white">
