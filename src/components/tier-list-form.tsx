@@ -919,121 +919,23 @@ export default function TierListForm({
       </div>
       <Separator className="bg-zinc-800" />
 
-      {/* AI item generation */}
-      <div className="space-y-3 rounded-xl border border-zinc-700/50 bg-zinc-800/30 p-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-violet-400" />
-          <Label className="text-violet-300">Generate items with AI</Label>
-        </div>
-        <div className="flex gap-2">
-          <input
-            value={aiPrompt}
-            onChange={(e) => { setAiPrompt(e.target.value); setAiError(null); }}
-            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAiGenerate())}
-            placeholder='e.g. "Best Pixar movies" or "Programming languages"'
-            className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-zinc-500"
-            disabled={isGenerating}
-          />
-          <Button
-            type="button"
-            onClick={() => handleAiGenerate()}
-            disabled={(!aiPrompt.trim() && !title.trim()) || isGenerating}
-            className="shrink-0 bg-violet-600 hover:bg-violet-500 text-white"
-          >
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-            {isGenerating ? "Generating…" : "Generate"}
-          </Button>
-        </div>
-        {isGenerating && (
-          <div className="relative h-0.5 overflow-hidden rounded-full bg-zinc-700">
-            <div className="absolute h-full w-2/5 rounded-full bg-violet-500 animate-indeterminate" />
-          </div>
-        )}
-        {aiError && <p className="text-xs text-red-400">{aiError}</p>}
-      </div>
-
-      <Separator className="bg-zinc-800" />
-
       {/* Items */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <Label>
             Items <span className="text-zinc-500">({pendingItems.length})</span>
           </Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addTextItem}
-            className="border-zinc-700 text-zinc-300 hover:text-white"
+        </div>
+
+        {pendingItems.length > 0 ? (
+          <div
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            className={`divide-y divide-zinc-700/50 overflow-hidden rounded-xl border bg-zinc-800/30 transition-colors ${
+              isDragging ? "border-blue-500 bg-blue-500/5" : "border-zinc-700/50"
+            }`}
           >
-            <Type className="mr-2 h-4 w-4" />
-            Add Text Item
-          </Button>
-        </div>
-
-        {/* Drop zone */}
-        <div
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
-            isDragging ? "border-blue-500 bg-blue-500/10" : "border-zinc-700 hover:border-zinc-500"
-          }`}
-        >
-          <Upload className="h-8 w-8 text-zinc-500" />
-          <p className="text-sm text-zinc-400">
-            Drag & drop images or videos, or <span className="text-blue-400">browse</span>
-          </p>
-          <p className="text-xs text-zinc-600">Supports JPG, PNG, GIF, WebP, MP4, WebM</p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*,video/*"
-            className="hidden"
-            onChange={(e) => e.target.files && addFiles(e.target.files)}
-          />
-        </div>
-
-        {/* YouTube URL input */}
-        <div className="space-y-1.5">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Youtube className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500" />
-              <input
-                value={youtubeInput}
-                onChange={(e) => { setYoutubeInput(e.target.value); setYoutubeError(null); }}
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddYouTube())}
-                placeholder="Paste a YouTube URL…"
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 py-2 pl-9 pr-3 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-zinc-500"
-              />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleAddYouTube}
-              className="shrink-0 border-zinc-700 text-zinc-300 hover:text-white"
-            >
-              Add
-            </Button>
-          </div>
-          {youtubeError && <p className="text-xs text-red-400">{youtubeError}</p>}
-        </div>
-
-        {/* Hidden per-item file input */}
-        <input
-          ref={perItemFileInputRef}
-          type="file"
-          accept="image/*,video/*"
-          className="hidden"
-          onChange={handlePerItemFileChange}
-        />
-
-        {/* Items list */}
-        {pendingItems.length > 0 && (
-          <div className="divide-y divide-zinc-700/50 overflow-hidden rounded-xl border border-zinc-700/50 bg-zinc-800/30">
             {pendingItems.map((item) => {
               const isEnriching = enrichingItems.has(item.localId);
               const hasVideo = item.type === "video" && (item.videoUrl ?? item.file);
@@ -1134,7 +1036,132 @@ export default function TierListForm({
               );
             })}
           </div>
+        ) : (
+          <div
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            className={`flex flex-col items-center gap-3 rounded-xl border-2 border-dashed py-12 text-center transition-colors ${
+              isDragging ? "border-blue-500 bg-blue-500/5" : "border-zinc-700/50"
+            }`}
+          >
+            <div className="rounded-full bg-zinc-800 p-3">
+              <Upload className="h-5 w-5 text-zinc-500" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-zinc-400">No items yet</p>
+              <p className="text-xs text-zinc-600">
+                Drag & drop files here, or use the toolbar below
+              </p>
+            </div>
+          </div>
         )}
+
+        {/* Hidden file inputs */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,video/*"
+          className="hidden"
+          onChange={(e) => e.target.files && addFiles(e.target.files)}
+        />
+        <input
+          ref={perItemFileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          className="hidden"
+          onChange={handlePerItemFileChange}
+        />
+      </div>
+
+      <Separator className="bg-zinc-800" />
+
+      {/* Add items */}
+      <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Add items</h3>
+
+        {/* Quick-add toolbar */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addTextItem}
+            className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-white"
+          >
+            <Type className="mr-1.5 h-3.5 w-3.5" />
+            Text
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-white"
+          >
+            <Upload className="mr-1.5 h-3.5 w-3.5" />
+            Upload files
+          </Button>
+
+          <div className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5">
+            <Youtube className="h-3.5 w-3.5 shrink-0 text-red-500" />
+            <input
+              value={youtubeInput}
+              onChange={(e) => { setYoutubeInput(e.target.value); setYoutubeError(null); }}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddYouTube())}
+              placeholder="YouTube URL…"
+              className="w-36 bg-transparent text-xs text-white placeholder:text-zinc-500 outline-none"
+            />
+            <button
+              type="button"
+              onClick={handleAddYouTube}
+              disabled={!youtubeInput.trim()}
+              className="text-xs font-medium text-blue-400 hover:text-blue-300 disabled:opacity-40"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+
+        {youtubeError && <p className="text-xs text-red-400">{youtubeError}</p>}
+
+        {/* Divider */}
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-zinc-800" />
+          <span className="text-xs text-zinc-600">or</span>
+          <div className="h-px flex-1 bg-zinc-800" />
+        </div>
+
+        {/* AI Generate */}
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <input
+              value={aiPrompt}
+              onChange={(e) => { setAiPrompt(e.target.value); setAiError(null); }}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAiGenerate())}
+              placeholder='e.g. "Best Pixar movies" or "Programming languages"'
+              className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500"
+              disabled={isGenerating}
+            />
+            <Button
+              type="button"
+              onClick={() => handleAiGenerate()}
+              disabled={(!aiPrompt.trim() && !title.trim()) || isGenerating}
+              className="shrink-0 bg-violet-600 hover:bg-violet-500 text-white"
+            >
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+              {isGenerating ? "Generating…" : "Generate"}
+            </Button>
+          </div>
+          {isGenerating && (
+            <div className="relative h-0.5 overflow-hidden rounded-full bg-zinc-700">
+              <div className="absolute h-full w-2/5 rounded-full bg-violet-500 animate-indeterminate" />
+            </div>
+          )}
+          {aiError && <p className="text-xs text-red-400">{aiError}</p>}
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}

@@ -387,6 +387,14 @@ export default function TierBoard({
   );
 }
 
+function tierLabelSize(label: string): string {
+  const len = label.length;
+  if (len <= 2) return "text-xl";
+  if (len <= 4) return "text-lg";
+  if (len <= 7) return "text-sm";
+  return "text-xs";
+}
+
 function TierRow({
   tier,
   itemIds,
@@ -408,10 +416,13 @@ function TierRow({
     <div className={`flex min-h-22 ${!isLast ? "border-b border-zinc-800" : ""}`}>
       {/* Label cell */}
       <div
-        className="flex w-16 shrink-0 items-center justify-center px-1 text-xl font-bold sm:w-20"
+        className="flex w-16 shrink-0 items-center justify-center px-1 font-bold sm:w-20"
         style={{ backgroundColor: tier.color + "22", borderRight: `3px solid ${tier.color}` }}
       >
-        <span className="w-full break-words text-center leading-tight" style={{ color: tier.color, fontFamily: "system-ui, sans-serif" }}>
+        <span
+          className={`w-full break-words text-center leading-tight ${tierLabelSize(tier.label)}`}
+          style={{ color: tier.color, fontFamily: "system-ui, sans-serif" }}
+        >
           {tier.label}
         </span>
       </div>
@@ -515,7 +526,7 @@ function ItemCard({ item, isOverlay, onPlayClick }: { item: Item; isOverlay?: bo
 
   if (item.type === "image" && item.imageUrl) {
     return (
-      <div className={base}>
+      <div className={base} title={item.label || undefined}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={item.imageUrl} alt={item.label} className="h-full w-full object-cover" draggable={false} />
         {item.label && (
@@ -528,11 +539,10 @@ function ItemCard({ item, isOverlay, onPlayClick }: { item: Item; isOverlay?: bo
   }
 
   if (item.type === "video") {
-    // Check if we have a thumbnail image (either from uploaded video or YouTube)
     const hasThumbnail = !!item.imageUrl;
 
     return (
-      <div className={`${base} group relative flex flex-col items-center justify-center gap-1 ${hasThumbnail ? "bg-black" : "bg-zinc-800/80"}`}>
+      <div className={`${base} flex flex-col items-center justify-center gap-1 ${hasThumbnail ? "bg-black" : "bg-zinc-800/80"}`} title={item.label || undefined}>
         {hasThumbnail && item.imageUrl ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -574,7 +584,7 @@ function ItemCard({ item, isOverlay, onPlayClick }: { item: Item; isOverlay?: bo
   }
 
   return (
-    <div className={`${base} flex items-center justify-center bg-zinc-800/80 p-2`}>
+    <div className={`${base} flex items-center justify-center bg-zinc-800/80 p-2`} title={item.label || undefined}>
       <p className="line-clamp-4 text-center text-[11px] font-medium leading-tight text-white">
         {item.label || <Type className="h-4 w-4 text-zinc-500" />}
       </p>
