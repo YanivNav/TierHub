@@ -42,23 +42,23 @@ export default function SignInForm() {
   };
 
   return (
-    <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 shadow-xl">
+    <div className="w-full max-w-sm rounded-xl border border-border bg-card/60 p-6 shadow-xl">
       <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-white">Welcome back</h1>
-        <p className="mt-1 text-sm text-zinc-400">Sign in to your TierHub account</p>
+        <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Sign in to your TierHub account</p>
       </div>
 
       <OAuthButtons />
 
-      <div className="my-5 flex items-center gap-3 text-xs text-zinc-500">
-        <span className="h-px flex-1 bg-zinc-800" />
+      <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
         or
-        <span className="h-px flex-1 bg-zinc-800" />
+        <span className="h-px flex-1 bg-border" />
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="email" className="text-zinc-300">
+          <Label htmlFor="email" className="text-foreground">
             Email
           </Label>
           <Input
@@ -73,7 +73,7 @@ export default function SignInForm() {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="password" className="text-zinc-300">
+          <Label htmlFor="password" className="text-foreground">
             Password
           </Label>
           <Input
@@ -98,7 +98,7 @@ export default function SignInForm() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-zinc-400">
+      <p className="mt-6 text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{" "}
         <Link href="/sign-up" className="font-medium text-blue-400 hover:text-blue-300">
           Sign up

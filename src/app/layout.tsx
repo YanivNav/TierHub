@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { TRPCProvider } from "@/lib/trpc/provider";
+import { ThemeProvider } from "@/components/theme-provider";
 import TopBar from "@/components/top-bar";
 import "./globals.css";
 
@@ -27,14 +28,16 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider>
-      <html lang="en" className="dark">
+      <html lang="en" suppressHydrationWarning>
         <body
           className={`${geistSans.variable} ${geistMono.variable} flex min-h-screen flex-col antialiased`}
         >
-          <TRPCProvider>
-            <TopBar />
-            {children}
-          </TRPCProvider>
+          <ThemeProvider>
+            <TRPCProvider>
+              <TopBar />
+              {children}
+            </TRPCProvider>
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

@@ -26,7 +26,7 @@ export default function TierListCard({
   actions,
 }: TierListCardProps) {
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 text-white">
+    <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground">
       <Link href={`/tier-lists/${id}`} className="relative block">
         <TierCardThumbnail coverImageUrl={coverImageUrl} images={images} />
         {badge && (
@@ -44,14 +44,14 @@ export default function TierListCard({
         {author ? (
           <div className="mt-1">{author}</div>
         ) : (
-          <p className="mt-1 text-xs text-zinc-500">
+          <p className="mt-1 text-xs text-muted-foreground">
             {new Date(createdAt).toLocaleDateString()}
           </p>
         )}
       </div>
 
       {actions && (
-        <div className="mt-auto flex items-center gap-1 border-t border-zinc-800 px-2 py-2">
+        <div className="mt-auto flex items-center gap-1 border-t border-border px-2 py-2">
           {actions}
         </div>
       )}

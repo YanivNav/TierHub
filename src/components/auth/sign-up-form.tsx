@@ -62,18 +62,18 @@ export default function SignUpForm() {
 
   if (pendingVerification) {
     return (
-      <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 shadow-xl">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-card/60 p-6 shadow-xl">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-white">Check your email</h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <h1 className="text-2xl font-bold text-foreground">Check your email</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             We sent a verification code to{" "}
-            <span className="text-zinc-200">{email}</span>
+            <span className="text-foreground">{email}</span>
           </p>
         </div>
 
         <form onSubmit={handleVerify} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="code" className="text-zinc-300">
+            <Label htmlFor="code" className="text-foreground">
               Verification code
             </Label>
             <Input
@@ -106,7 +106,7 @@ export default function SignUpForm() {
             setCode("");
             setError("");
           }}
-          className="mt-4 w-full text-center text-sm text-zinc-400 hover:text-zinc-200"
+          className="mt-4 w-full text-center text-sm text-muted-foreground hover:text-foreground"
         >
           ← Back
         </button>
@@ -115,23 +115,23 @@ export default function SignUpForm() {
   }
 
   return (
-    <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 shadow-xl">
+    <div className="w-full max-w-sm rounded-xl border border-border bg-card/60 p-6 shadow-xl">
       <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-white">Create your account</h1>
-        <p className="mt-1 text-sm text-zinc-400">Start building tier lists in seconds</p>
+        <h1 className="text-2xl font-bold text-foreground">Create your account</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Start building tier lists in seconds</p>
       </div>
 
       <OAuthButtons />
 
-      <div className="my-5 flex items-center gap-3 text-xs text-zinc-500">
-        <span className="h-px flex-1 bg-zinc-800" />
+      <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
         or
-        <span className="h-px flex-1 bg-zinc-800" />
+        <span className="h-px flex-1 bg-border" />
       </div>
 
       <form onSubmit={handleSignUp} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="email" className="text-zinc-300">
+          <Label htmlFor="email" className="text-foreground">
             Email
           </Label>
           <Input
@@ -146,7 +146,7 @@ export default function SignUpForm() {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="password" className="text-zinc-300">
+          <Label htmlFor="password" className="text-foreground">
             Password
           </Label>
           <Input
@@ -174,7 +174,7 @@ export default function SignUpForm() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-zinc-400">
+      <p className="mt-6 text-center text-sm text-muted-foreground">
         Already have an account?{" "}
         <Link href="/sign-in" className="font-medium text-blue-400 hover:text-blue-300">
           Sign in

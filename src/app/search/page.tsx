@@ -14,7 +14,7 @@ export default async function SearchPage({
   const thumbs = await getThumbnailImages(lists.map((l) => l.id));
 
   return (
-    <main className="flex-1 bg-zinc-950 p-8 text-white">
+    <main className="flex-1 bg-background p-8 text-foreground">
       <div className="mx-auto max-w-6xl">
         <h1 className="mb-6 text-2xl font-bold">
           {term ? (
@@ -28,12 +28,12 @@ export default async function SearchPage({
         </h1>
 
         {!term ? (
-          <p className="text-zinc-400">
+          <p className="text-muted-foreground">
             Type a query in the search bar to find public tier lists.
           </p>
         ) : lists.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-zinc-700 py-24 text-center">
-            <p className="text-zinc-400">
+          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-border py-24 text-center">
+            <p className="text-muted-foreground">
               No public tier lists match &ldquo;{term}&rdquo;.
             </p>
             <Link

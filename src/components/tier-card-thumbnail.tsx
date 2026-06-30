@@ -16,7 +16,7 @@ export default function TierCardThumbnail({
   className?: string;
 }) {
   const wrapper = cn(
-    "relative aspect-video w-full overflow-hidden bg-zinc-950",
+    "relative aspect-video w-full overflow-hidden bg-background",
     className
   );
 
@@ -104,7 +104,7 @@ function DefaultTierIcon() {
     { label: "C", color: "#22c55e" },
   ];
   return (
-    <div className="flex h-full w-full flex-col items-stretch justify-center gap-1 bg-zinc-900 p-4">
+    <div className="flex h-full w-full flex-col items-stretch justify-center gap-1 bg-card p-4">
       {rows.map((r) => (
         <div key={r.label} className="flex items-center gap-1.5">
           <span

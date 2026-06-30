@@ -32,7 +32,7 @@ export default function UserMenu() {
   }, [open]);
 
   if (!isLoaded || !user) {
-    return <div className="h-8 w-8 animate-pulse rounded-full bg-zinc-800" />;
+    return <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />;
   }
 
   const email = user.primaryEmailAddress?.emailAddress ?? "";
@@ -47,7 +47,7 @@ export default function UserMenu() {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-zinc-700 bg-zinc-800 text-sm font-semibold text-white transition hover:ring-2 hover:ring-zinc-600"
+        className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-sm font-semibold text-foreground transition hover:ring-2 hover:ring-border"
       >
         {user.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -60,10 +60,10 @@ export default function UserMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 w-60 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 shadow-xl"
+          className="absolute right-0 mt-2 w-60 overflow-hidden rounded-lg border border-border bg-card shadow-xl"
         >
-          <div className="flex items-center gap-3 border-b border-zinc-800 p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-zinc-700 bg-zinc-800 text-sm font-semibold text-white">
+          <div className="flex items-center gap-3 border-b border-border p-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-sm font-semibold text-foreground">
               {user.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={user.imageUrl} alt={name} className="h-full w-full object-cover" />
@@ -72,8 +72,8 @@ export default function UserMenu() {
               )}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-white">{name}</p>
-              {email && <p className="truncate text-xs text-zinc-400">{email}</p>}
+              <p className="truncate text-sm font-medium text-foreground">{name}</p>
+              {email && <p className="truncate text-xs text-muted-foreground">{email}</p>}
             </div>
           </div>
 
@@ -85,7 +85,7 @@ export default function UserMenu() {
                 setOpen(false);
                 router.push("/dashboard");
               }}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <UserIcon className="h-4 w-4" />
               My Tier Lists
@@ -97,7 +97,7 @@ export default function UserMenu() {
                 setOpen(false);
                 router.push("/settings");
               }}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <Settings className="h-4 w-4" />
               Settings

@@ -41,8 +41,8 @@ export default function DangerSection() {
     <section>
       <h2 className="mb-1 text-sm font-semibold text-red-400">Danger zone</h2>
       <div className="rounded-lg border border-red-900/50 bg-red-950/20 p-4">
-        <p className="text-sm font-medium text-white">Delete account</p>
-        <p className="mt-1 text-sm text-zinc-400">
+        <p className="text-sm font-medium text-foreground">Delete account</p>
+        <p className="mt-1 text-sm text-muted-foreground">
           Permanently delete your account and every tier list you&apos;ve
           created. This can&apos;t be undone.
         </p>
@@ -59,13 +59,13 @@ export default function DangerSection() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="border-zinc-800 bg-zinc-900 text-white">
+        <DialogContent className="border-border bg-card text-foreground">
           <DialogHeader>
             <DialogTitle>Delete your account?</DialogTitle>
-            <DialogDescription className="text-zinc-400">
+            <DialogDescription className="text-muted-foreground">
               This permanently deletes your account and all of your tier lists.
               This can&apos;t be undone. Type{" "}
-              <span className="font-medium text-zinc-200">@{handle}</span> to
+              <span className="font-medium text-foreground">@{handle}</span> to
               confirm.
             </DialogDescription>
           </DialogHeader>
@@ -82,7 +82,7 @@ export default function DangerSection() {
           <DialogFooter>
             <Button
               variant="outline"
-              className="border-zinc-700 text-zinc-300 hover:text-white"
+              className="border-border text-foreground hover:text-foreground"
               onClick={() => setOpen(false)}
               disabled={deleteAccount.isPending}
             >

@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignedIn, SignedOut } from "@clerk/nextjs";
-import { Moon, Plus } from "lucide-react";
+import { Moon, Plus, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import UserMenu from "@/components/user-menu";
@@ -17,17 +18,21 @@ const NAV = [
 
 export default function TopBar() {
   const pathname = usePathname();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <header className="sticky top-0 z-40 shrink-0 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur">
+    <header className="sticky top-0 z-40 shrink-0 border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
         {/* Logo → home */}
         <Link
           href="/"
-          className="text-lg font-extrabold tracking-tight text-white"
+          className="text-lg font-extrabold tracking-tight text-zinc-900 dark:text-white"
         >
           Tier<span className="text-blue-500">Hub</span>
         </Link>
@@ -41,8 +46,8 @@ export default function TopBar() {
               className={cn(
                 "rounded-md px-3 py-1.5 text-sm transition-colors",
                 isActive(item.href)
-                  ? "bg-zinc-800 text-white"
-                  : "text-zinc-400 hover:bg-zinc-800/60 hover:text-white"
+                  ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white"
+                  : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-white"
               )}
             >
               {item.label}
@@ -59,15 +64,17 @@ export default function TopBar() {
         </Suspense>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Light/dark switch — UI only for now, not wired to actual theming */}
-          <button
-            type="button"
-            aria-label="Toggle theme"
-            title="Light / dark — coming soon"
-            className="flex h-9 w-9 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800/60 hover:text-white"
-          >
-            <Moon className="h-4 w-4" />
-          </button>
+          {/* Theme toggle */}
+          {mounted && (
+            <button
+              type="button"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              aria-label="Toggle theme"
+              className="flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-white"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          )}
 
           <SignedIn>
             <Button

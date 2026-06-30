@@ -30,14 +30,14 @@ export default async function TierListPage({
   const isOwner = userId === list.userId;
 
   return (
-    <main className="flex-1 bg-zinc-950 p-6 text-white">
+    <main className="flex-1 bg-background p-6 text-foreground">
       <ViewTracker listId={list.id} isOwner={isOwner} />
       <div className="mx-auto max-w-4xl">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">{list.title}</h1>
             {list.description && (
-              <p className="mt-1 text-zinc-400">{list.description}</p>
+              <p className="mt-1 text-muted-foreground">{list.description}</p>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -46,7 +46,7 @@ export default async function TierListPage({
                 asChild
                 size="sm"
                 variant="outline"
-                className="border-zinc-700 text-zinc-300 hover:text-white"
+                className="border-border text-foreground hover:text-foreground"
               >
                 <Link href={`/dashboard/${list.id}`}>Edit</Link>
               </Button>

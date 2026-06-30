@@ -27,7 +27,7 @@ export default async function EditTierListPage({
   if (!list) notFound();
 
   return (
-    <main className="flex-1 bg-zinc-950 p-8 text-white">
+    <main className="flex-1 bg-background p-8 text-foreground">
       <div className="mx-auto max-w-2xl">
         <div className="mb-8 flex items-center justify-between gap-4">
           <h1 className="text-3xl font-bold">Edit Tier List</h1>

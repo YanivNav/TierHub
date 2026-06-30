@@ -47,7 +47,7 @@ export default function TierEditor({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-800">
+    <div className="overflow-hidden rounded-xl border border-border">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={tiers.map((t) => t.localId)} strategy={verticalListSortingStrategy}>
           {tiers.map((tier, i) => (
@@ -65,7 +65,7 @@ export default function TierEditor({
       <button
         type="button"
         onClick={onAdd}
-        className="flex w-full items-center justify-center gap-2 py-2.5 text-sm text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300"
+        className="flex w-full items-center justify-center gap-2 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
       >
         <Plus className="h-4 w-4" />
         Add tier
@@ -112,14 +112,14 @@ function TierRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-3 bg-zinc-900 px-4 py-3 ${!isLast ? "border-b border-zinc-800" : ""}`}
+      className={`flex items-center gap-3 bg-card px-4 py-3 ${!isLast ? "border-b border-border" : ""}`}
     >
       {/* Drag handle */}
       <button
         type="button"
         {...attributes}
         {...listeners}
-        className="shrink-0 cursor-grab touch-none text-zinc-600 hover:text-zinc-400 active:cursor-grabbing"
+        className="shrink-0 cursor-grab touch-none text-muted-foreground hover:text-muted-foreground active:cursor-grabbing"
         tabIndex={-1}
       >
         <GripVertical className="h-4 w-4" />
@@ -151,7 +151,7 @@ function TierRow({
         onBlur={handleLabelBlur}
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         maxLength={30}
-        className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-zinc-500"
+        className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground"
         style={{ color: tier.color }}
         placeholder="Tier name"
       />
@@ -161,7 +161,7 @@ function TierRow({
         type="button"
         onClick={() => onDelete(tier.localId)}
         title="Delete tier"
-        className="rounded p-1 text-zinc-600 hover:bg-red-500/20 hover:text-red-400"
+        className="rounded p-1 text-muted-foreground hover:bg-red-500/20 hover:text-red-400"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>

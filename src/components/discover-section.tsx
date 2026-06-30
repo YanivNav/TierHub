@@ -17,7 +17,7 @@ export default function DiscoverSection({
 
   return (
     <section className="space-y-4">
-      <h2 className="flex items-center gap-2 text-xl font-bold text-white">
+      <h2 className="flex items-center gap-2 text-xl font-bold text-foreground">
         {icon}
         {title}
       </h2>

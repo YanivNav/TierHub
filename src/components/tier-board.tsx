@@ -297,7 +297,7 @@ export default function TierBoard({
       <div className="flex items-center justify-between gap-2">
         <button
           onClick={handleClearRanking}
-          className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-500 hover:text-white"
+          className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground"
         >
           <RotateCcw className="h-3.5 w-3.5" />
           Clear ranking
@@ -306,7 +306,7 @@ export default function TierBoard({
           <button
             onClick={() => duplicateMutation.mutate({ id: tierListId })}
             disabled={duplicateMutation.isPending}
-            className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-500 hover:text-white disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:opacity-50"
           >
             {isOwner ? (
               <>
@@ -322,7 +322,7 @@ export default function TierBoard({
           </button>
           <button
             onClick={handleCopyLink}
-            className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-500 hover:text-white"
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground"
           >
           {copied ? (
             <>
@@ -348,7 +348,7 @@ export default function TierBoard({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="overflow-hidden rounded-xl border border-zinc-800">
+        <div className="overflow-hidden rounded-xl border border-border">
           {initialTiers.map((tier, i) => (
             <TierRow
               key={tier.id}
@@ -413,7 +413,7 @@ function TierRow({
   const { setNodeRef, isOver } = useDroppable({ id: tier.id });
 
   return (
-    <div className={`flex min-h-22 ${!isLast ? "border-b border-zinc-800" : ""}`}>
+    <div className={`flex min-h-22 ${!isLast ? "border-b border-border" : ""}`}>
       {/* Label cell */}
       <div
         className="flex w-16 shrink-0 items-center justify-center px-1 font-bold sm:w-20"
@@ -457,21 +457,21 @@ function UnrankedPool({ itemIds, itemMap, isDragging, onPlayClick }: {
 
   return (
     <div>
-      <p className="mb-2 text-sm font-medium text-zinc-500">
+      <p className="mb-2 text-sm font-medium text-muted-foreground">
         Unranked{itemIds.length > 0 ? ` · ${itemIds.length}` : ""}
       </p>
       <div
         ref={setNodeRef}
         className={`min-h-20 rounded-xl border p-3 transition-colors ${
           isOver
-            ? "border-zinc-600 bg-white/5"
+            ? "border-border bg-white/5"
             : isDragging
-            ? "border-zinc-700 bg-white/2"
-            : "border-zinc-800"
+            ? "border-border bg-white/2"
+            : "border-border"
         }`}
       >
         {itemIds.length === 0 && !isDragging ? (
-          <p className="flex h-14 items-center justify-center text-sm text-zinc-600">
+          <p className="flex h-14 items-center justify-center text-sm text-muted-foreground">
             Drag items here to unrank them
           </p>
         ) : (
@@ -521,7 +521,7 @@ function SortableItem({ item, onPlayClick }: { item: Item; onPlayClick?: (itemId
 
 function ItemCard({ item, isOverlay, onPlayClick }: { item: Item; isOverlay?: boolean; onPlayClick?: (itemId: string) => void }) {
   const base = `relative h-20 w-20 overflow-hidden rounded-lg border transition-shadow ${
-    isOverlay ? "border-blue-500 shadow-2xl shadow-blue-500/20" : "border-zinc-700"
+    isOverlay ? "border-blue-500 shadow-2xl shadow-blue-500/20" : "border-border"
   }`;
 
   if (item.type === "image" && item.imageUrl) {
@@ -542,7 +542,7 @@ function ItemCard({ item, isOverlay, onPlayClick }: { item: Item; isOverlay?: bo
     const hasThumbnail = !!item.imageUrl;
 
     return (
-      <div className={`${base} flex flex-col items-center justify-center gap-1 ${hasThumbnail ? "bg-black" : "bg-zinc-800/80"}`} title={item.label || undefined}>
+      <div className={`${base} flex flex-col items-center justify-center gap-1 ${hasThumbnail ? "bg-background" : "bg-muted/80"}`} title={item.label || undefined}>
         {hasThumbnail && item.imageUrl ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -557,7 +557,7 @@ function ItemCard({ item, isOverlay, onPlayClick }: { item: Item; isOverlay?: bo
           <>
             <Video className="h-6 w-6 text-purple-400" />
             {item.label && (
-              <p className="line-clamp-2 px-1 text-center text-[10px] text-zinc-300">{item.label}</p>
+              <p className="line-clamp-2 px-1 text-center text-[10px] text-muted-foreground">{item.label}</p>
             )}
           </>
         )}
@@ -584,9 +584,9 @@ function ItemCard({ item, isOverlay, onPlayClick }: { item: Item; isOverlay?: bo
   }
 
   return (
-    <div className={`${base} flex items-center justify-center bg-zinc-800/80 p-2`} title={item.label || undefined}>
-      <p className="line-clamp-4 text-center text-[11px] font-medium leading-tight text-white">
-        {item.label || <Type className="h-4 w-4 text-zinc-500" />}
+    <div className={`${base} flex items-center justify-center bg-muted/80 p-2`} title={item.label || undefined}>
+      <p className="line-clamp-4 text-center text-[11px] font-medium leading-tight text-foreground">
+        {item.label || <Type className="h-4 w-4 text-muted-foreground" />}
       </p>
     </div>
   );
@@ -595,7 +595,7 @@ function ItemCard({ item, isOverlay, onPlayClick }: { item: Item; isOverlay?: bo
 function VideoPreview({ item }: { item?: Item }) {
   if (!item || item.type !== "video") {
     return (
-      <div className="flex items-center justify-center py-8 text-zinc-500">
+      <div className="flex items-center justify-center py-8 text-muted-foreground">
         No video selected
       </div>
     );
@@ -604,7 +604,7 @@ function VideoPreview({ item }: { item?: Item }) {
   const videoUrl = item.videoUrl;
   if (!videoUrl) {
     return (
-      <div className="flex items-center justify-center py-8 text-zinc-500">
+      <div className="flex items-center justify-center py-8 text-muted-foreground">
         Video URL not available
       </div>
     );

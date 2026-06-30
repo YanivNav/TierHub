@@ -40,13 +40,13 @@ export default async function HomePage() {
   const isEmpty = trending.length === 0 && top.length === 0 && newLists.length === 0;
 
   return (
-    <main className="flex-1 bg-zinc-950 text-white">
+    <main className="flex-1 bg-background text-foreground">
       {/* Slim hero */}
-      <section className="bg-gradient-to-b from-zinc-900 to-zinc-950 px-4 py-12 text-center">
+      <section className="bg-gradient-to-b from-muted to-background px-4 py-12 text-center">
         <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
           Tier<span className="text-blue-500">Hub</span>
         </h1>
-        <p className="mx-auto mt-3 max-w-xl text-zinc-400">
+        <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
           Create beautiful tier lists with text, images, videos, and AI-powered suggestions. Share with the world.
         </p>
         <div className="mt-6 flex justify-center gap-3">
@@ -59,7 +59,7 @@ export default async function HomePage() {
           {userId && (
             <Link
               href="/dashboard"
-              className="rounded-lg border border-zinc-600 px-5 py-2.5 font-semibold transition hover:border-zinc-400"
+              className="rounded-lg border border-border px-5 py-2.5 font-semibold transition hover:border-border"
             >
               My Tier Lists
             </Link>
@@ -69,8 +69,8 @@ export default async function HomePage() {
 
       <div className="mx-auto max-w-6xl space-y-12 px-4 py-10">
         {isEmpty ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-zinc-700 py-24 text-center">
-            <p className="text-zinc-400">No public tier lists yet.</p>
+          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-border py-24 text-center">
+            <p className="text-muted-foreground">No public tier lists yet.</p>
             <Link
               href={userId ? "/dashboard/new" : "/sign-up"}
               className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold transition hover:bg-blue-500"

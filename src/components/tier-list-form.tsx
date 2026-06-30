@@ -819,14 +819,14 @@ export default function TierListForm({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           required
-          className="border-zinc-700 bg-zinc-900"
+          className="border-border bg-card"
         />
       </div>
 
       {/* Description */}
       <div className="space-y-2">
         <Label htmlFor="description">
-          Description <span className="text-zinc-500">(optional)</span>
+          Description <span className="text-muted-foreground">(optional)</span>
         </Label>
         <Textarea
           id="description"
@@ -834,16 +834,16 @@ export default function TierListForm({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
-          className="resize-none border-zinc-700 bg-zinc-900"
+          className="resize-none border-border bg-card"
         />
       </div>
 
       {/* Cover image — manual thumbnail (collage/icon fallback if empty) */}
       <div className="space-y-2">
         <Label>
-          Cover image <span className="text-zinc-500">(optional)</span>
+          Cover image <span className="text-muted-foreground">(optional)</span>
         </Label>
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-muted-foreground">
           Shown on the dashboard card. If left empty, a collage of item images
           (or a default icon) is used.
         </p>
@@ -855,7 +855,7 @@ export default function TierListForm({
           onChange={(e) => handleCoverSelect(e.target.files?.[0] ?? null)}
         />
         <div className="flex items-center gap-3">
-          <div className="relative h-20 w-32 shrink-0 overflow-hidden rounded-md border border-zinc-700 bg-zinc-900">
+          <div className="relative h-20 w-32 shrink-0 overflow-hidden rounded-md border border-border bg-card">
             {coverPreview ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -864,7 +864,7 @@ export default function TierListForm({
                 className="h-full w-full object-cover"
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-zinc-600">
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
                 <ImageOff className="h-5 w-5" />
               </div>
             )}
@@ -874,7 +874,7 @@ export default function TierListForm({
               type="button"
               size="sm"
               variant="outline"
-              className="border-zinc-700 text-zinc-300 hover:text-white"
+              className="border-border text-foreground hover:text-foreground"
               onClick={() => coverInputRef.current?.click()}
             >
               <Upload className="mr-1 h-4 w-4" />
@@ -885,7 +885,7 @@ export default function TierListForm({
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="text-zinc-400 hover:bg-red-500/10 hover:text-red-400"
+                className="text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
                 onClick={handleCoverRemove}
               >
                 <X className="mr-1 h-4 w-4" />
@@ -904,7 +904,7 @@ export default function TierListForm({
         </Label>
       </div>
 
-      <Separator className="bg-zinc-800" />
+      <Separator className="bg-border" />
 
       {/* Tier structure */}
       <div className="space-y-3">
@@ -917,13 +917,13 @@ export default function TierListForm({
           onReorder={handleReorderTier}
         />
       </div>
-      <Separator className="bg-zinc-800" />
+      <Separator className="bg-border" />
 
       {/* Items */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <Label>
-            Items <span className="text-zinc-500">({pendingItems.length})</span>
+            Items <span className="text-muted-foreground">({pendingItems.length})</span>
           </Label>
         </div>
 
@@ -932,8 +932,8 @@ export default function TierListForm({
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
-            className={`divide-y divide-zinc-700/50 overflow-hidden rounded-xl border bg-zinc-800/30 transition-colors ${
-              isDragging ? "border-blue-500 bg-blue-500/5" : "border-zinc-700/50"
+            className={`divide-y divide-border/50 overflow-hidden rounded-xl border bg-muted/30 transition-colors ${
+              isDragging ? "border-blue-500 bg-blue-500/5" : "border-border/50"
             }`}
           >
             {pendingItems.map((item) => {
@@ -945,7 +945,7 @@ export default function TierListForm({
                 <div key={item.localId} className="flex flex-col">
                   <div className="flex items-center gap-3 p-3">
                     {/* Thumbnail / play button */}
-                    <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-700">
+                    <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
                       {item.previewUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
@@ -955,7 +955,7 @@ export default function TierListForm({
                           onClick={() => runResolveMedia(item.localId, item.label, "video", item.searchQuery)}
                           disabled={isEnriching}
                           title="Load video from YouTube"
-                          className="flex h-full w-full items-center justify-center text-red-500 hover:bg-zinc-600/50 transition-colors"
+                          className="flex h-full w-full items-center justify-center text-red-500 hover:bg-muted/50 transition-colors"
                         >
                           <Youtube className="h-5 w-5" />
                         </button>
@@ -997,10 +997,10 @@ export default function TierListForm({
                         value={item.label}
                         onChange={(e) => updateItemLabel(item.localId, e.target.value)}
                         placeholder={item.type === "text" ? "Item label..." : "Label (optional)"}
-                        className="w-full bg-transparent text-sm font-medium text-white placeholder:text-zinc-500 outline-none"
+                        className="w-full bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground outline-none"
                       />
                       {item.file && (
-                        <p className="mt-0.5 truncate text-xs text-zinc-500">{item.file.name}</p>
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.file.name}</p>
                       )}
                       {item.type === "image" && !item.previewUrl && !item.file && !isEnriching && (
                         <p className="mt-0.5 text-xs text-amber-500/80">
@@ -1018,7 +1018,7 @@ export default function TierListForm({
                         setItemYoutubeError(null);
                       }}
                       title="Attach or replace media"
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-white"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       <Upload className="h-3.5 w-3.5" />
                     </button>
@@ -1027,7 +1027,7 @@ export default function TierListForm({
                     <button
                       type="button"
                       onClick={() => removeItem(item.localId)}
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-white"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -1042,15 +1042,15 @@ export default function TierListForm({
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
             className={`flex flex-col items-center gap-3 rounded-xl border-2 border-dashed py-12 text-center transition-colors ${
-              isDragging ? "border-blue-500 bg-blue-500/5" : "border-zinc-700/50"
+              isDragging ? "border-blue-500 bg-blue-500/5" : "border-border/50"
             }`}
           >
-            <div className="rounded-full bg-zinc-800 p-3">
-              <Upload className="h-5 w-5 text-zinc-500" />
+            <div className="rounded-full bg-muted p-3">
+              <Upload className="h-5 w-5 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-sm font-medium text-zinc-400">No items yet</p>
-              <p className="text-xs text-zinc-600">
+              <p className="text-sm font-medium text-muted-foreground">No items yet</p>
+              <p className="text-xs text-muted-foreground">
                 Drag & drop files here, or use the toolbar below
               </p>
             </div>
@@ -1075,11 +1075,11 @@ export default function TierListForm({
         />
       </div>
 
-      <Separator className="bg-zinc-800" />
+      <Separator className="bg-border" />
 
       {/* Add items */}
-      <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Add items</h3>
+      <div className="space-y-4 rounded-xl border border-border bg-card/50 p-5">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Add items</h3>
 
         {/* Quick-add toolbar */}
         <div className="flex flex-wrap items-center gap-2">
@@ -1088,7 +1088,7 @@ export default function TierListForm({
             variant="outline"
             size="sm"
             onClick={addTextItem}
-            className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-white"
+            className="border-border bg-card text-foreground hover:border-border hover:text-foreground"
           >
             <Type className="mr-1.5 h-3.5 w-3.5" />
             Text
@@ -1099,20 +1099,20 @@ export default function TierListForm({
             variant="outline"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
-            className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-white"
+            className="border-border bg-card text-foreground hover:border-border hover:text-foreground"
           >
             <Upload className="mr-1.5 h-3.5 w-3.5" />
             Upload files
           </Button>
 
-          <div className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5">
             <Youtube className="h-3.5 w-3.5 shrink-0 text-red-500" />
             <input
               value={youtubeInput}
               onChange={(e) => { setYoutubeInput(e.target.value); setYoutubeError(null); }}
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddYouTube())}
               placeholder="YouTube URL…"
-              className="w-36 bg-transparent text-xs text-white placeholder:text-zinc-500 outline-none"
+              className="w-36 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
             />
             <button
               type="button"
@@ -1129,9 +1129,9 @@ export default function TierListForm({
 
         {/* Divider */}
         <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-zinc-800" />
-          <span className="text-xs text-zinc-600">or</span>
-          <div className="h-px flex-1 bg-zinc-800" />
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">or</span>
+          <div className="h-px flex-1 bg-border" />
         </div>
 
         {/* AI Generate */}
@@ -1142,7 +1142,7 @@ export default function TierListForm({
               onChange={(e) => { setAiPrompt(e.target.value); setAiError(null); }}
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAiGenerate())}
               placeholder='e.g. "Best Pixar movies" or "Programming languages"'
-              className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500"
+              className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-violet-500"
               disabled={isGenerating}
             />
             <Button
@@ -1156,7 +1156,7 @@ export default function TierListForm({
             </Button>
           </div>
           {isGenerating && (
-            <div className="relative h-0.5 overflow-hidden rounded-full bg-zinc-700">
+            <div className="relative h-0.5 overflow-hidden rounded-full bg-muted">
               <div className="absolute h-full w-2/5 rounded-full bg-violet-500 animate-indeterminate" />
             </div>
           )}
@@ -1166,13 +1166,13 @@ export default function TierListForm({
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      <Separator className="bg-zinc-800" />
+      <Separator className="bg-border" />
 
       <div className="flex justify-end gap-3">
         <Button
           type="button"
           variant="outline"
-          className="border-zinc-700 text-zinc-300"
+          className="border-border text-foreground"
           onClick={() => router.push("/dashboard")}
           disabled={isSubmitting}
         >
@@ -1201,7 +1201,7 @@ export default function TierListForm({
           <Button
             type="button"
             variant="outline"
-            className="border-zinc-700 text-zinc-300"
+            className="border-border text-foreground"
             onClick={() => router.push("/dashboard")}
           >
             Back to dashboard
@@ -1244,7 +1244,7 @@ export default function TierListForm({
                 <button
                   type="button"
                   onClick={() => perItemFileInputRef.current?.click()}
-                  className="flex w-full items-center gap-2 rounded-lg border border-zinc-700 px-3 py-2.5 text-sm text-zinc-300 hover:border-zinc-500 hover:text-white transition-colors"
+                  className="flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2.5 text-sm text-foreground hover:border-border hover:text-foreground transition-colors"
                 >
                   <Upload className="h-4 w-4 shrink-0" />
                   Upload file
@@ -1252,14 +1252,14 @@ export default function TierListForm({
 
                 {/* YouTube URL */}
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-2 focus-within:border-zinc-500">
+                  <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 focus-within:border-border">
                     <Youtube className="h-4 w-4 shrink-0 text-red-500" />
                     <input
                       value={itemYoutubeInput}
                       onChange={(e) => { setItemYoutubeInput(e.target.value); setItemYoutubeError(null); }}
                       onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleItemYouTube(item.localId))}
                       placeholder="YouTube URL…"
-                      className="flex-1 bg-transparent text-sm text-white placeholder:text-zinc-500 outline-none"
+                      className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
                     />
                     <button
                       type="button"
@@ -1289,7 +1289,7 @@ export default function TierListForm({
                   <button
                     type="button"
                     onClick={() => handleRemoveItemMedia(item.localId)}
-                    className="flex w-full items-center gap-2 rounded-lg border border-zinc-700 px-3 py-2.5 text-sm text-zinc-400 hover:border-red-700/50 hover:text-red-400 transition-colors"
+                    className="flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2.5 text-sm text-muted-foreground hover:border-red-700/50 hover:text-red-400 transition-colors"
                   >
                     <X className="h-4 w-4 shrink-0" />
                     Remove media

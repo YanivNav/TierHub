@@ -36,10 +36,10 @@ export default function OAuthButtons() {
             type="button"
             disabled={!isLoaded || pending !== null}
             onClick={() => signInWith(p.strategy)}
-            className="flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-700 bg-zinc-900 text-sm font-medium text-zinc-100 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-card text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending === p.strategy ? (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-500 border-t-transparent" />
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-transparent" />
             ) : (
               p.icon
             )}

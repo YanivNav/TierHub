@@ -24,7 +24,7 @@ export default function ConnectionsSection() {
   );
 
   if (!isLoaded || !user) {
-    return <div className="h-24 animate-pulse rounded-lg bg-zinc-800/60" />;
+    return <div className="h-24 animate-pulse rounded-lg bg-muted/60" />;
   }
 
   const accountFor = (strategy: OAuthStrategy) =>
@@ -67,14 +67,14 @@ export default function ConnectionsSection() {
 
   return (
     <section>
-      <h2 className="mb-1 text-sm font-semibold text-zinc-300">
+      <h2 className="mb-1 text-sm font-semibold text-foreground">
         Connected accounts
       </h2>
-      <p className="mb-4 text-xs text-zinc-500">
+      <p className="mb-4 text-xs text-muted-foreground">
         Connect a provider to sign in with it.
       </p>
 
-      <ul className="divide-y divide-zinc-800 overflow-hidden rounded-lg border border-zinc-800">
+      <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
         {PROVIDERS.map((p) => {
           const account = accountFor(p.strategy);
           const identifier = account?.emailAddress || account?.username;
@@ -82,14 +82,14 @@ export default function ConnectionsSection() {
           return (
             <li
               key={p.strategy}
-              className="flex items-center justify-between gap-3 bg-zinc-900 px-4 py-3"
+              className="flex items-center justify-between gap-3 bg-card px-4 py-3"
             >
               <div className="flex min-w-0 items-center gap-3">
                 <span className="shrink-0">{p.icon}</span>
                 <div className="min-w-0">
-                  <p className="text-sm text-white">{p.label}</p>
+                  <p className="text-sm text-foreground">{p.label}</p>
                   {account && identifier && (
-                    <p className="truncate text-xs text-zinc-500">
+                    <p className="truncate text-xs text-muted-foreground">
                       {identifier}
                     </p>
                   )}
@@ -111,7 +111,7 @@ export default function ConnectionsSection() {
                   variant="outline"
                   disabled={isBusy}
                   onClick={() => connect(p.strategy)}
-                  className="shrink-0 border-zinc-700 text-zinc-200 hover:text-white"
+                  className="shrink-0 border-border text-foreground hover:text-foreground"
                 >
                   {isBusy ? "Connecting…" : "Connect"}
                 </Button>

@@ -19,7 +19,7 @@ export default function DiscoverListCard({
       coverImageUrl={list.coverImageUrl}
       images={images}
       author={
-        <div className="flex items-center gap-2 text-xs text-zinc-400">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {list.authorImageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -32,7 +32,7 @@ export default function DiscoverListCard({
         </div>
       }
       actions={
-        <Button asChild size="sm" variant="ghost" className="flex-1 text-zinc-400 hover:text-white">
+        <Button asChild size="sm" variant="ghost" className="flex-1 text-muted-foreground hover:text-foreground">
           <Link href={`/tier-lists/${list.id}`}>View</Link>
         </Button>
       }

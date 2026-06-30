@@ -24,7 +24,7 @@ export default async function DashboardPage() {
   const imagesByList = await getThumbnailImages(lists.map((l) => l.id));
 
   return (
-    <main className="flex-1 bg-zinc-950 p-8 text-white">
+    <main className="flex-1 bg-background p-8 text-foreground">
       <div className="mx-auto max-w-4xl">
         <div className="mb-8 flex items-center justify-between">
           <h1 className="text-3xl font-bold">My Tier Lists</h1>
@@ -34,8 +34,8 @@ export default async function DashboardPage() {
         </div>
 
         {lists.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-zinc-700 py-24 text-center">
-            <p className="text-zinc-400">No tier lists yet.</p>
+          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-border py-24 text-center">
+            <p className="text-muted-foreground">No tier lists yet.</p>
             <Button asChild className="bg-blue-600 hover:bg-blue-500">
               <Link href="/dashboard/new">Create your first one</Link>
             </Button>
@@ -51,17 +51,17 @@ export default async function DashboardPage() {
                 coverImageUrl={list.coverImageUrl}
                 images={imagesByList.get(list.id) ?? []}
                 badge={
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${list.isPublic ? "bg-blue-600 text-white" : "bg-zinc-700 text-zinc-300"}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${list.isPublic ? "bg-blue-600 text-white" : "bg-muted text-foreground"}`}>
                     {list.isPublic ? "Public" : "Private"}
                   </span>
                 }
                 actions={
                   <>
                     <DeleteListButton id={list.id} title={list.title} />
-                    <Button asChild size="sm" variant="ghost" className="flex-1 text-zinc-400 hover:text-white">
+                    <Button asChild size="sm" variant="ghost" className="flex-1 text-muted-foreground hover:text-foreground">
                       <Link href={`/tier-lists/${list.id}`}>View</Link>
                     </Button>
-                    <Button asChild size="sm" variant="outline" className="flex-1 border-zinc-700 text-zinc-300 hover:text-white">
+                    <Button asChild size="sm" variant="outline" className="flex-1 border-border text-foreground hover:text-foreground">
                       <Link href={`/dashboard/${list.id}`}>Edit</Link>
                     </Button>
                   </>

@@ -48,7 +48,7 @@ export default function DeleteListButton({
         className={
           label
             ? "border-red-900/60 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-            : "text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
+            : "text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
         }
         onClick={() => setOpen(true)}
       >
@@ -57,11 +57,11 @@ export default function DeleteListButton({
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="border-zinc-800 bg-zinc-900 text-white">
+        <DialogContent className="border-border bg-card text-foreground">
           <DialogHeader>
             <DialogTitle>Delete tier list?</DialogTitle>
-            <DialogDescription className="text-zinc-400">
-              <span className="font-medium text-zinc-200">{title}</span> and all
+            <DialogDescription className="text-muted-foreground">
+              <span className="font-medium text-foreground">{title}</span> and all
               of its tiers and items will be permanently deleted. This can&apos;t
               be undone.
             </DialogDescription>
@@ -76,7 +76,7 @@ export default function DeleteListButton({
           <DialogFooter>
             <Button
               variant="outline"
-              className="border-zinc-700 text-zinc-300 hover:text-white"
+              className="border-border text-foreground hover:text-foreground"
               onClick={() => setOpen(false)}
               disabled={del.isPending}
             >
