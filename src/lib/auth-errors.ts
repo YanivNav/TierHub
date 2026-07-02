@@ -1,100 +1,62 @@
-import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
-
 type AuthContext = "sign-in" | "sign-up" | "verify" | "oauth" | "profile";
 
 const GENERIC = "Something went wrong. Please try again.";
 
+function errorParts(err: unknown): { code: string; status?: number } {
+  if (err && typeof err === "object") {
+    const e = err as { code?: string; status?: number };
+    return { code: (e.code ?? "").toUpperCase(), status: e.status };
+  }
+  return { code: "" };
+}
+
 /**
- * Maps a Clerk error to a user-facing message keyed on its stable error `code`.
+ * Maps a Better Auth error to a user-facing message keyed on its `code`.
  *
  * The guiding rule is to avoid account enumeration: on sign-in we never reveal
  * whether it was the email or the password that was wrong, nor whether the
- * account exists at all - every credential failure returns one neutral message.
+ * account exists at all — every credential failure returns one neutral message.
  */
 export function getAuthErrorMessage(err: unknown, context: AuthContext): string {
-  if (!isClerkAPIResponseError(err)) return GENERIC;
+  const { code, status } = errorParts(err);
 
-  const first = err.errors[0];
-  const code = first?.code ?? "";
-
-  // Rate limiting applies to every flow.
-  if (code === "too_many_requests" || err.status === 429) {
+  if (status === 429) {
     return "Too many attempts. Please wait a moment and try again.";
   }
 
   switch (context) {
-    case "sign-in": {
+    case "sign-in":
       switch (code) {
-        // Collapse every credential failure into one message so the response
-        // is identical whether or not the email is registered.
-        case "form_identifier_not_found":
-        case "form_password_incorrect":
-        case "form_param_format_invalid":
-        case "form_param_nil":
-        case "strategy_for_user_invalid":
-          return "Invalid email or password.";
-        case "session_exists":
-          return "You're already signed in.";
+        case "EMAIL_NOT_VERIFIED":
+          return "Please verify your email first — check your inbox for the link.";
+        // Collapse every credential failure into one neutral message.
         default:
           return "Invalid email or password.";
       }
-    }
 
-    case "sign-up": {
+    case "sign-up":
       switch (code) {
-        // Email already in use. This is inherently observable on sign-up (you
-        // can't create a duplicate), so we keep it actionable but nudge to login.
-        case "form_identifier_exists":
+        case "USER_ALREADY_EXISTS":
+        case "USER_EMAIL_ALREADY_EXISTS":
           return "An account with this email already exists. Try signing in instead.";
-        case "form_param_format_invalid":
-          return "Please enter a valid email address.";
-        case "form_password_pwned":
-          return "This password has appeared in a data breach. Please choose a different one.";
-        case "form_password_length_too_short":
-        case "form_password_size_in_bytes_exceeded":
-        case "form_password_validation_failed":
+        case "PASSWORD_TOO_SHORT":
           return "Password must be at least 8 characters.";
-        case "captcha_invalid":
-        case "captcha_failed":
-          return "Couldn't verify you're human. Please try again.";
+        case "PASSWORD_TOO_LONG":
+          return "That password is too long. Please choose a shorter one.";
         default:
           return "Couldn't create your account. Please check your details and try again.";
       }
-    }
 
-    case "verify": {
-      switch (code) {
-        case "form_code_incorrect":
-        case "verification_failed":
-          return "That code is incorrect. Please check and try again.";
-        case "verification_expired":
-          return "That code has expired. Request a new one.";
-        case "verification_already_verified":
-          return "This email is already verified. Try signing in.";
-        default:
-          return "Couldn't verify that code. Please try again.";
-      }
-    }
+    case "verify":
+      return "Couldn't verify that — the link may have expired. Request a new one.";
 
-    case "oauth": {
-      switch (code) {
-        case "session_exists":
-          return "You're already signed in.";
-        default:
-          return "Couldn't continue with that provider. Please try again.";
-      }
-    }
+    case "oauth":
+      return "Couldn't continue with that provider. Please try again.";
 
-    case "profile": {
-      switch (code) {
-        case "form_param_format_invalid":
-        case "image_type_not_allowed":
-          return "That file type isn't supported. Try a PNG or JPG.";
-        case "request_body_too_large":
-          return "That image is too large. Please choose a smaller file.";
-        default:
-          return "Couldn't update your profile. Please try again.";
-      }
-    }
+    case "profile":
+      return "Couldn't update your profile. Please try again.";
+
+    default:
+      return GENERIC;
   }
 }

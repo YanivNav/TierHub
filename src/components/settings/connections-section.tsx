@@ -1,69 +1,55 @@
 "use client";
 
-import { useState } from "react";
-import { useUser, useReverification } from "@clerk/nextjs";
-import type { ExternalAccountResource, OAuthStrategy } from "@clerk/types";
-import { trpc } from "@/lib/trpc/client";
+import { useCallback, useEffect, useState } from "react";
+import { authClient } from "@/lib/auth-client";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
-import { PROVIDERS } from "@/lib/oauth-providers";
+import { PROVIDERS, type OAuthProviderId } from "@/lib/oauth-providers";
 import { Button } from "@/components/ui/button";
 
-/** Clerk reports providers without the `oauth_` prefix (e.g. "google"). */
-const providerKey = (strategy: OAuthStrategy) => strategy.replace("oauth_", "");
-
 export default function ConnectionsSection() {
-  const { user, isLoaded } = useUser();
-  const utils = trpc.useUtils();
-  const [busy, setBusy] = useState<OAuthStrategy | null>(null);
+  const [connected, setConnected] = useState<Set<string> | null>(null);
+  const [busy, setBusy] = useState<OAuthProviderId | null>(null);
   const [error, setError] = useState("");
 
-  // Disconnecting an account is sensitive - wrap it so Clerk can require a
-  // recent sign-in (step-up) if the instance is configured for it.
-  const destroyAccount = useReverification((account: ExternalAccountResource) =>
-    account.destroy()
-  );
+  const load = useCallback(async () => {
+    const { data } = await authClient.listAccounts();
+    const ids = (data ?? []).map(
+      (a) => (a as { providerId?: string; provider?: string }).providerId ??
+        (a as { provider?: string }).provider ?? ""
+    );
+    setConnected(new Set(ids));
+  }, []);
 
-  if (!isLoaded || !user) {
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const connect = async (provider: OAuthProviderId) => {
+    setError("");
+    setBusy(provider);
+    // Redirects to the provider on success; only returns here on error.
+    const { error } = await authClient.linkSocial({
+      provider,
+      callbackURL: "/settings",
+    });
+    if (error) {
+      setError(getAuthErrorMessage(error, "oauth"));
+      setBusy(null);
+    }
+  };
+
+  const disconnect = async (provider: OAuthProviderId) => {
+    setError("");
+    setBusy(provider);
+    const { error } = await authClient.unlinkAccount({ providerId: provider });
+    if (error) setError(getAuthErrorMessage(error, "profile"));
+    await load();
+    setBusy(null);
+  };
+
+  if (connected === null) {
     return <div className="h-24 animate-pulse rounded-lg bg-muted/60" />;
   }
-
-  const accountFor = (strategy: OAuthStrategy) =>
-    user.externalAccounts.find((a) => a.provider === providerKey(strategy));
-
-  const connect = async (strategy: OAuthStrategy) => {
-    setError("");
-    setBusy(strategy);
-    try {
-      const account = await user.createExternalAccount({
-        strategy,
-        redirectUrl: window.location.href,
-      });
-      const url = account.verification?.externalVerificationRedirectURL;
-      if (url) {
-        window.location.href = url.toString();
-        return;
-      }
-      await user.reload();
-    } catch (err) {
-      setError(getAuthErrorMessage(err, "oauth"));
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const disconnect = async (account: ExternalAccountResource, strategy: OAuthStrategy) => {
-    setError("");
-    setBusy(strategy);
-    try {
-      await destroyAccount(account);
-      await user.reload();
-      await utils.user.getMe.invalidate();
-    } catch (err) {
-      setError(getAuthErrorMessage(err, "profile"));
-    } finally {
-      setBusy(null);
-    }
-  };
 
   return (
     <section>
@@ -76,31 +62,23 @@ export default function ConnectionsSection() {
 
       <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
         {PROVIDERS.map((p) => {
-          const account = accountFor(p.strategy);
-          const identifier = account?.emailAddress || account?.username;
-          const isBusy = busy === p.strategy;
+          const isConnected = connected.has(p.id);
+          const isBusy = busy === p.id;
           return (
             <li
-              key={p.strategy}
+              key={p.id}
               className="flex items-center justify-between gap-3 bg-card px-4 py-3"
             >
               <div className="flex min-w-0 items-center gap-3">
                 <span className="shrink-0">{p.icon}</span>
-                <div className="min-w-0">
-                  <p className="text-sm text-foreground">{p.label}</p>
-                  {account && identifier && (
-                    <p className="truncate text-xs text-muted-foreground">
-                      {identifier}
-                    </p>
-                  )}
-                </div>
+                <p className="text-sm text-foreground">{p.label}</p>
               </div>
-              {account ? (
+              {isConnected ? (
                 <Button
                   size="sm"
                   variant="ghost"
                   disabled={isBusy}
-                  onClick={() => disconnect(account, p.strategy)}
+                  onClick={() => disconnect(p.id)}
                   className="shrink-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
                 >
                   {isBusy ? "Removing…" : "Disconnect"}
@@ -110,7 +88,7 @@ export default function ConnectionsSection() {
                   size="sm"
                   variant="outline"
                   disabled={isBusy}
-                  onClick={() => connect(p.strategy)}
+                  onClick={() => connect(p.id)}
                   className="shrink-0 border-border text-foreground hover:text-foreground"
                 >
                   {isBusy ? "Connecting…" : "Connect"}
@@ -121,7 +99,7 @@ export default function ConnectionsSection() {
         })}
       </ul>
 
-      <p className="mt-3 text-sm text-red-400">{error || " "}</p>
+      <p className="mt-3 text-sm text-red-400">{error || " "}</p>
     </section>
   );
 }

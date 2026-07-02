@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
+import { getServerUserId } from "@/server/auth";
 import { Sparkles, TrendingUp, Trophy } from "lucide-react";
 import {
   getNewRandomLists,
@@ -14,7 +14,7 @@ const TOP_LIMIT = 8;
 const NEW_LIMIT = 8;
 
 export default async function HomePage() {
-  const { userId } = await auth();
+  const userId = await getServerUserId();
 
   const [trending, topRaw, newRaw] = await Promise.all([
     getTrendingLists(TRENDING_LIMIT),

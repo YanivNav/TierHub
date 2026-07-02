@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useClerk, useUser } from "@clerk/nextjs";
 import { LogOut, Settings, User as UserIcon } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 export default function UserMenu() {
-  const { user, isLoaded } = useUser();
-  const { signOut } = useClerk();
+  const { data: session, isPending } = authClient.useSession();
+  const user = session?.user;
   const router = useRouter();
 
   const [open, setOpen] = useState(false);
@@ -31,12 +31,12 @@ export default function UserMenu() {
     };
   }, [open]);
 
-  if (!isLoaded || !user) {
+  if (isPending || !user) {
     return <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />;
   }
 
-  const email = user.primaryEmailAddress?.emailAddress ?? "";
-  const name = user.fullName ?? user.firstName ?? user.username ?? email.split("@")[0] ?? "Account";
+  const email = user.email ?? "";
+  const name = user.name ?? user.username ?? email.split("@")[0] ?? "Account";
   const initial = (name[0] ?? "?").toUpperCase();
 
   return (
@@ -48,9 +48,9 @@ export default function UserMenu() {
         aria-expanded={open}
         className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-sm font-semibold text-foreground transition hover:ring-2 hover:ring-border"
       >
-        {user.imageUrl ? (
+        {user.image ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={user.imageUrl} alt={name} className="h-full w-full object-cover" />
+          <img src={user.image} alt={name} className="h-full w-full object-cover" />
         ) : (
           initial
         )}
@@ -63,9 +63,9 @@ export default function UserMenu() {
         >
           <div className="flex items-center gap-3 border-b border-border p-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-sm font-semibold text-foreground">
-              {user.imageUrl ? (
+              {user.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={user.imageUrl} alt={name} className="h-full w-full object-cover" />
+                <img src={user.image} alt={name} className="h-full w-full object-cover" />
               ) : (
                 initial
               )}
@@ -106,7 +106,9 @@ export default function UserMenu() {
               role="menuitem"
               onClick={() => {
                 setOpen(false);
-                void signOut(() => router.push("/"));
+                void authClient.signOut({
+                  fetchOptions: { onSuccess: () => router.push("/") },
+                });
               }}
               className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300"
             >

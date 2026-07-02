@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { getServerUserId } from "@/server/auth";
 import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import DeleteListButton from "@/components/delete-list-button";
 import TierListCard from "@/components/tier-list-card";
 
 export default async function DashboardPage() {
-  const { userId } = await auth();
+  const userId = await getServerUserId();
   if (!userId) redirect("/sign-in");
 
   const lists = await db

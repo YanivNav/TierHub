@@ -46,3 +46,7 @@ export function getPublicUrl(key: string) {
 export function buildItemKey(userId: string, tierListId: string, filename: string) {
   return `items/${userId}/${tierListId}/${Date.now()}-${filename}`;
 }
+
+export function buildAvatarKey(userId: string, filename: string) {
+  return `avatars/${userId}/${Date.now()}-${filename}`;
+}

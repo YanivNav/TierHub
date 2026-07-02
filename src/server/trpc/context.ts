@@ -1,12 +1,12 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 
 export async function createTRPCContext(opts: FetchCreateContextFnOptions) {
-  const { userId } = await auth();
+  const session = await auth.api.getSession({ headers: opts.req.headers });
   return {
     db,
-    userId,
+    userId: session?.user.id ?? null,
     ...opts,
   };
 }

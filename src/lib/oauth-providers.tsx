@@ -1,7 +1,8 @@
-import type { OAuthStrategy } from "@clerk/types";
+/** Better Auth social provider ids. */
+export type OAuthProviderId = "google" | "github" | "discord";
 
 export type OAuthProvider = {
-  strategy: OAuthStrategy;
+  id: OAuthProviderId;
   label: string;
   icon: React.ReactNode;
 };
@@ -9,7 +10,7 @@ export type OAuthProvider = {
 /** OAuth providers offered for sign-in and account connections. */
 export const PROVIDERS: OAuthProvider[] = [
   {
-    strategy: "oauth_google",
+    id: "google",
     label: "Google",
     icon: (
       <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
@@ -33,7 +34,7 @@ export const PROVIDERS: OAuthProvider[] = [
     ),
   },
   {
-    strategy: "oauth_github",
+    id: "github",
     label: "GitHub",
     icon: (
       <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden>
@@ -42,7 +43,7 @@ export const PROVIDERS: OAuthProvider[] = [
     ),
   },
   {
-    strategy: "oauth_discord",
+    id: "discord",
     label: "Discord",
     icon: (
       <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>

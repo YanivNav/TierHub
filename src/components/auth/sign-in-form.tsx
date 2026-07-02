@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSignIn } from "@clerk/nextjs";
+import { authClient } from "@/lib/auth-client";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import OAuthButtons from "@/components/auth/oauth-buttons";
 
 export default function SignInForm() {
-  const { isLoaded, signIn, setActive } = useSignIn();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -21,24 +20,22 @@ export default function SignInForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded || submitting) return;
+    if (submitting) return;
     setError("");
     setSubmitting(true);
 
-    try {
-      const result = await signIn.create({ identifier: email, password });
+    const { error } = await authClient.signIn.email({
+      email,
+      password,
+      callbackURL: "/dashboard",
+    });
 
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        router.push("/dashboard");
-      } else {
-        setError("Additional verification is required to sign in.");
-        setSubmitting(false);
-      }
-    } catch (err) {
-      setError(getAuthErrorMessage(err, "sign-in"));
+    if (error) {
+      setError(getAuthErrorMessage(error, "sign-in"));
       setSubmitting(false);
+      return;
     }
+    router.push("/dashboard");
   };
 
   return (
@@ -91,7 +88,7 @@ export default function SignInForm() {
 
         <Button
           type="submit"
-          disabled={!isLoaded || submitting}
+          disabled={submitting}
           className="w-full bg-blue-600 hover:bg-blue-500"
         >
           {submitting ? "Signing in…" : "Sign in"}

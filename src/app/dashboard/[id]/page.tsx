@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { getServerUserId } from "@/server/auth";
 import { redirect, notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/server/db";
@@ -11,7 +11,7 @@ export default async function EditTierListPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { userId } = await auth();
+  const userId = await getServerUserId();
   if (!userId) redirect("/sign-in");
 
   const { id } = await params;

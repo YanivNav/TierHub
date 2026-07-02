@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs";
 import { TRPCProvider } from "@/lib/trpc/provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import TopBar from "@/components/top-bar";
@@ -45,19 +44,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider>
-      <html lang="en" suppressHydrationWarning>
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} flex min-h-screen flex-col antialiased`}
-        >
-          <ThemeProvider>
-            <TRPCProvider>
-              <TopBar />
-              {children}
-            </TRPCProvider>
-          </ThemeProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} flex min-h-screen flex-col antialiased`}
+      >
+        <ThemeProvider>
+          <TRPCProvider>
+            <TopBar />
+            {children}
+          </TRPCProvider>
+        </ThemeProvider>
+      </body>
+    </html>
   );
 }

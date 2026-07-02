@@ -8,7 +8,7 @@ export const api = createTRPCProxyClient<AppRouter>({
   links: [
     httpBatchLink({
       transformer: superjson,
-      url: `${process.env.NEXT_PUBLIC_APP_URL}/api/trpc`,
+      url: `${process.env.NEXT_PUBLIC_APP_URL ?? ('https://' + process.env.VERCEL_URL)}/api/trpc`,
       async headers() {
         const heads = await headers();
         const headersList = new Headers(heads);

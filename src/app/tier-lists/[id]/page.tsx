@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { getServerUserId } from "@/server/auth";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
@@ -46,7 +46,7 @@ export default async function TierListPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { userId } = await auth();
+  const userId = await getServerUserId();
 
   const list = await db.query.tierLists.findFirst({
     where: eq(tierLists.id, id),

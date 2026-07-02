@@ -9,8 +9,8 @@ Post-launch items to revisit. Not blocking for initial release.
 - [ ] Free tier: 30 AI generations lifetime, then require subscription
 
 ## Auth
-- [ ] Migrate from Clerk to Better Auth (self-hosted, no vendor lock-in)
-- [ ] Add "Forgot password" link to sign-in form (Clerk already supports this)
+- [✅] Migrate from Clerk to Better Auth (self-hosted, no vendor lock-in)
+- [ ] Add "Forgot password" link to sign-in form
 
 ## Performance
 - [ ] Replace `<img>` with `<next/image>` for automatic optimization

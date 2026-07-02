@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useSignUp } from "@clerk/nextjs";
+import { authClient } from "@/lib/auth-client";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,105 +10,50 @@ import { Button } from "@/components/ui/button";
 import OAuthButtons from "@/components/auth/oauth-buttons";
 
 export default function SignUpForm() {
-  const { isLoaded, signUp, setActive } = useSignUp();
-  const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
-  const [pendingVerification, setPendingVerification] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded || submitting) return;
+    if (submitting) return;
     setError("");
     setSubmitting(true);
 
-    try {
-      await signUp.create({ emailAddress: email, password });
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-      setPendingVerification(true);
-    } catch (err) {
-      setError(getAuthErrorMessage(err, "sign-up"));
-    } finally {
-      setSubmitting(false);
+    // A unique handle is derived server-side; name defaults to the email
+    // local-part and can be changed later in settings.
+    const { error } = await authClient.signUp.email({
+      email,
+      password,
+      name: email.split("@")[0],
+      callbackURL: "/dashboard",
+    });
+
+    setSubmitting(false);
+    if (error) {
+      setError(getAuthErrorMessage(error, "sign-up"));
+      return;
     }
+    setSent(true);
   };
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isLoaded || submitting) return;
-    setError("");
-    setSubmitting(true);
-
-    try {
-      const result = await signUp.attemptEmailAddressVerification({ code });
-
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        router.push("/dashboard");
-      } else {
-        setError("Verification incomplete. Please try again.");
-        setSubmitting(false);
-      }
-    } catch (err) {
-      setError(getAuthErrorMessage(err, "verify"));
-      setSubmitting(false);
-    }
-  };
-
-  if (pendingVerification) {
+  if (sent) {
     return (
-      <div className="w-full max-w-sm rounded-xl border border-border bg-card/60 p-6 shadow-xl">
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-foreground">Check your email</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            We sent a verification code to{" "}
-            <span className="text-foreground">{email}</span>
-          </p>
-        </div>
-
-        <form onSubmit={handleVerify} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="code" className="text-foreground">
-              Verification code
-            </Label>
-            <Input
-              id="code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              required
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="123456"
-              className="text-center tracking-[0.5em]"
-            />
-          </div>
-
-          <p className="text-sm text-red-400">{error || " "}</p>
-
-          <Button
-            type="submit"
-            disabled={submitting}
-            className="w-full bg-blue-600 hover:bg-blue-500"
-          >
-            {submitting ? "Verifying…" : "Verify email"}
-          </Button>
-        </form>
-
-        <button
-          type="button"
-          onClick={() => {
-            setPendingVerification(false);
-            setCode("");
-            setError("");
-          }}
-          className="mt-4 w-full text-center text-sm text-muted-foreground hover:text-foreground"
+      <div className="w-full max-w-sm rounded-xl border border-border bg-card/60 p-6 text-center shadow-xl">
+        <h1 className="text-2xl font-bold text-foreground">Check your email</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          We sent a verification link to{" "}
+          <span className="text-foreground">{email}</span>. Click it to finish
+          setting up your account.
+        </p>
+        <Link
+          href="/sign-in"
+          className="mt-6 inline-block text-sm font-medium text-blue-400 hover:text-blue-300"
         >
-          ← Back
-        </button>
+          ← Back to sign in
+        </Link>
       </div>
     );
   }
@@ -160,14 +104,11 @@ export default function SignUpForm() {
           />
         </div>
 
-        <p className="text-sm text-red-400">{error || " "}</p>
-
-        {/* Clerk Smart CAPTCHA mounts here when bot protection is enabled */}
-        <div id="clerk-captcha" />
+        <p className="text-sm text-red-400">{error || " "}</p>
 
         <Button
           type="submit"
-          disabled={!isLoaded || submitting}
+          disabled={submitting}
           className="w-full bg-blue-600 hover:bg-blue-500"
         >
           {submitting ? "Creating account…" : "Create account"}

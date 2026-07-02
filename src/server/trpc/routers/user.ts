@@ -1,16 +1,13 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { currentUser, clerkClient } from "@clerk/nextjs/server";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc/trpc";
 import { users } from "@/server/db/schema";
-import { ensureUser } from "@/lib/auth";
+import { buildAvatarKey, getPresignedUploadUrl, getPublicUrl } from "@/lib/r2";
 
 export const userRouter = createTRPCRouter({
   /** The signed-in user's DB profile (handle/avatar/email shown across the app). */
   getMe: protectedProcedure.query(async ({ ctx }) => {
-    // Guarantee the row exists even for a user who hasn't done a write yet.
-    await ensureUser(ctx.userId);
     return ctx.db.query.users.findFirst({
       where: eq(users.id, ctx.userId),
       columns: { username: true, imageUrl: true, email: true },
@@ -24,13 +21,15 @@ export const userRouter = createTRPCRouter({
           .string()
           .min(3)
           .max(30)
-          .regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers and underscores.")
-          .transform((v) => v.toLowerCase()),
+          .regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers and underscores."),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Store the handle lowercased for uniqueness; keep original casing as
+      // displayUsername (the username plugin's convention).
+      const handle = input.username.toLowerCase();
       const taken = await ctx.db.query.users.findFirst({
-        where: eq(users.username, input.username),
+        where: eq(users.username, handle),
         columns: { id: true },
       });
       if (taken && taken.id !== ctx.userId) {
@@ -42,30 +41,39 @@ export const userRouter = createTRPCRouter({
 
       const [updated] = await ctx.db
         .update(users)
-        .set({ username: input.username, updatedAt: new Date() })
+        .set({
+          username: handle,
+          displayUsername: input.username,
+          updatedAt: new Date(),
+        })
         .where(eq(users.id, ctx.userId))
         .returning({ username: users.username });
       return updated;
     }),
 
-  /** Pull the latest avatar/email from Clerk into the DB (after an avatar change). */
-  syncFromClerk: protectedProcedure.mutation(async ({ ctx }) => {
-    const clerkUser = await currentUser();
-    if (!clerkUser) return { synced: false };
+  /** Presigned R2 URL for uploading a new avatar image. */
+  getAvatarUploadUrl: protectedProcedure
+    .input(z.object({ filename: z.string(), contentType: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const key = buildAvatarKey(ctx.userId, input.filename);
+      const uploadUrl = await getPresignedUploadUrl(key, input.contentType);
+      return { uploadUrl, publicUrl: getPublicUrl(key) };
+    }),
 
-    const email = clerkUser.emailAddresses[0]?.emailAddress ?? "";
-    await ctx.db
-      .update(users)
-      .set({ imageUrl: clerkUser.imageUrl, email, updatedAt: new Date() })
-      .where(eq(users.id, ctx.userId));
-    return { synced: true };
-  }),
+  /** Persist a newly-uploaded avatar URL (R2) onto the profile. */
+  updateAvatar: protectedProcedure
+    .input(z.object({ imageUrl: z.string().url().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .update(users)
+        .set({ imageUrl: input.imageUrl, updatedAt: new Date() })
+        .where(eq(users.id, ctx.userId));
+      return { imageUrl: input.imageUrl };
+    }),
 
-  /** Permanently delete the account: DB row (cascades to lists) then the Clerk user. */
+  /** Permanently delete the account. Cascades to lists, sessions, and accounts. */
   deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
     await ctx.db.delete(users).where(eq(users.id, ctx.userId));
-    const client = await clerkClient();
-    await client.users.deleteUser(ctx.userId);
     return { deleted: true };
   }),
 });

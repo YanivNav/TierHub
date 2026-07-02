@@ -1,26 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { useSignIn } from "@clerk/nextjs";
+import { authClient } from "@/lib/auth-client";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
-import { PROVIDERS } from "@/lib/oauth-providers";
-import type { OAuthStrategy } from "@clerk/types";
+import { PROVIDERS, type OAuthProviderId } from "@/lib/oauth-providers";
 
 export default function OAuthButtons() {
-  const { signIn, isLoaded } = useSignIn();
   const [error, setError] = useState("");
-  const [pending, setPending] = useState<OAuthStrategy | null>(null);
+  const [pending, setPending] = useState<OAuthProviderId | null>(null);
 
-  const signInWith = async (strategy: OAuthStrategy) => {
-    if (!isLoaded) return;
+  const signInWith = async (provider: OAuthProviderId) => {
     setError("");
-    setPending(strategy);
+    setPending(provider);
     try {
-      await signIn.authenticateWithRedirect({
-        strategy,
-        redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/dashboard",
+      // Redirects to the provider, then back to /dashboard via the Better Auth
+      // callback route. On error the promise resolves without redirecting.
+      const { error } = await authClient.signIn.social({
+        provider,
+        callbackURL: "/dashboard",
       });
+      if (error) {
+        setPending(null);
+        setError(getAuthErrorMessage(error, "oauth"));
+      }
     } catch (err) {
       setPending(null);
       setError(getAuthErrorMessage(err, "oauth"));
@@ -32,13 +34,13 @@ export default function OAuthButtons() {
       <div className="grid gap-2">
         {PROVIDERS.map((p) => (
           <button
-            key={p.strategy}
+            key={p.id}
             type="button"
-            disabled={!isLoaded || pending !== null}
-            onClick={() => signInWith(p.strategy)}
+            disabled={pending !== null}
+            onClick={() => signInWith(p.id)}
             className="flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-card text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {pending === p.strategy ? (
+            {pending === p.id ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-transparent" />
             ) : (
               p.icon
@@ -47,7 +49,7 @@ export default function OAuthButtons() {
           </button>
         ))}
       </div>
-      <p className="text-sm text-red-400">{error || " "}</p>
+      <p className="text-sm text-red-400">{error || " "}</p>
     </div>
   );
 }

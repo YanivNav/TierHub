@@ -2,27 +2,26 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
 import { trpc } from "@/lib/trpc/client";
-import { getAuthErrorMessage } from "@/lib/auth-errors";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 function validateUsername(v: string): string {
-  if (v.length < 3 || v.length > 30) return "Username must be 3-30 characters.";
+  if (v.length < 3 || v.length > 30) return "Username must be 3–30 characters.";
   if (!/^[a-zA-Z0-9_]+$/.test(v)) return "Only letters, numbers and underscores.";
   return "";
 }
 
 export default function ProfileSection() {
-  const { user } = useUser();
   const router = useRouter();
   const utils = trpc.useUtils();
 
   const me = trpc.user.getMe.useQuery();
   const updateUsername = trpc.user.updateUsername.useMutation();
-  const syncFromClerk = trpc.user.syncFromClerk.useMutation();
+  const getAvatarUploadUrl = trpc.user.getAvatarUploadUrl.useMutation();
+  const updateAvatar = trpc.user.updateAvatar.useMutation();
 
   const [username, setUsername] = useState("");
   const [usernameError, setUsernameError] = useState("");
@@ -33,6 +32,7 @@ export default function ProfileSection() {
   const [avatarError, setAvatarError] = useState("");
 
   const handle = me.data?.username ?? "";
+  const imageUrl = me.data?.imageUrl ?? null;
 
   useEffect(() => {
     if (handle) setUsername(handle);
@@ -61,18 +61,27 @@ export default function ProfileSection() {
   };
 
   const applyAvatar = async (file: File | null) => {
-    if (!user) return;
-    // Nothing to remove when only Clerk's default generated avatar is present.
-    if (file === null && !user.hasImage) return;
     setAvatarError("");
     setAvatarBusy(true);
     try {
-      await user.setProfileImage({ file });
-      await user.reload();
-      await syncFromClerk.mutateAsync();
+      if (file === null) {
+        await updateAvatar.mutateAsync({ imageUrl: null });
+      } else {
+        const { uploadUrl, publicUrl } = await getAvatarUploadUrl.mutateAsync({
+          filename: file.name,
+          contentType: file.type,
+        });
+        await fetch(uploadUrl, {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": file.type },
+        });
+        await updateAvatar.mutateAsync({ imageUrl: publicUrl });
+      }
+      await utils.user.getMe.invalidate();
       router.refresh();
-    } catch (err) {
-      setAvatarError(getAuthErrorMessage(err, "profile"));
+    } catch {
+      setAvatarError("Couldn't update your profile picture. Please try again.");
     } finally {
       setAvatarBusy(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -85,18 +94,14 @@ export default function ProfileSection() {
     <div className="space-y-8">
       {/* Avatar */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-foreground">
+        <h2 className="mb-3 text-sm font-semibold text-zinc-300">
           Profile picture
         </h2>
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-xl font-semibold text-foreground">
-            {user?.imageUrl ? (
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-zinc-700 bg-zinc-800 text-xl font-semibold text-white">
+            {imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.imageUrl}
-                alt=""
-                className="h-full w-full object-cover"
-              />
+              <img src={imageUrl} alt="" className="h-full w-full object-cover" />
             ) : (
               initial
             )}
@@ -108,21 +113,21 @@ export default function ProfileSection() {
                 variant="outline"
                 disabled={avatarBusy}
                 onClick={() => fileRef.current?.click()}
-                className="border-border text-foreground hover:text-foreground"
+                className="border-zinc-700 text-zinc-200 hover:text-white"
               >
                 {avatarBusy ? "Uploading…" : "Upload"}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                disabled={avatarBusy || !user?.hasImage}
+                disabled={avatarBusy || !imageUrl}
                 onClick={() => applyAvatar(null)}
-                className="text-muted-foreground hover:text-foreground"
+                className="text-zinc-400 hover:text-white"
               >
                 Remove
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">PNG or JPG, up to 10 MB.</p>
+            <p className="text-xs text-zinc-500">PNG or JPG, up to 10 MB.</p>
             {avatarError && (
               <p className="text-sm text-red-400">{avatarError}</p>
             )}
@@ -142,14 +147,14 @@ export default function ProfileSection() {
 
       {/* Username */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Username</h2>
+        <h2 className="mb-3 text-sm font-semibold text-zinc-300">Username</h2>
         <div className="flex items-center gap-2">
           <div className="flex-1 space-y-1.5">
             <Label htmlFor="username" className="sr-only">
               Username
             </Label>
-            <div className="flex items-center rounded-md border border-border bg-card pl-3 focus-within:ring-1 focus-within:ring-border">
-              <span className="text-sm text-muted-foreground">@</span>
+            <div className="flex items-center rounded-md border border-zinc-700 bg-zinc-900 pl-3 focus-within:ring-1 focus-within:ring-zinc-500">
+              <span className="text-sm text-zinc-500">@</span>
               <Input
                 id="username"
                 value={username}

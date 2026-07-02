@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useClerk } from "@clerk/nextjs";
+import { authClient } from "@/lib/auth-client";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,6 @@ import {
 
 export default function DangerSection() {
   const router = useRouter();
-  const { signOut } = useClerk();
   const me = trpc.user.getMe.useQuery();
 
   const [open, setOpen] = useState(false);
@@ -29,7 +28,9 @@ export default function DangerSection() {
   const deleteAccount = trpc.user.deleteAccount.useMutation({
     onSuccess: () => {
       // Session is gone server-side; clear it client-side and leave.
-      void signOut(() => router.push("/"));
+      void authClient.signOut({
+        fetchOptions: { onSuccess: () => router.push("/") },
+      });
     },
     onError: () =>
       setError("Couldn't delete your account. Please try again."),

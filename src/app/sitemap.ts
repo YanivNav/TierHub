@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db";
 import { tierLists } from "@/server/db/schema";
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? `https://${process.env.VERCEL_URL}`;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lists = await db.query.tierLists.findMany({

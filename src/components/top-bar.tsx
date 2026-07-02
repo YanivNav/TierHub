@@ -3,9 +3,9 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SignedIn, SignedOut } from "@clerk/nextjs";
 import { Moon, Plus, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
+import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import UserMenu from "@/components/user-menu";
@@ -20,6 +20,7 @@ export default function TopBar() {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const { data: session, isPending } = authClient.useSession();
 
   useEffect(() => setMounted(true), []);
 
@@ -76,25 +77,26 @@ export default function TopBar() {
             </button>
           )}
 
-          <SignedIn>
-            <Button
-              asChild
-              size="sm"
-              className="hidden bg-blue-600 hover:bg-blue-500 sm:inline-flex"
-            >
-              <Link href="/dashboard/new">
-                <Plus className="mr-1 h-4 w-4" />
-                New List
-              </Link>
-            </Button>
-            <UserMenu />
-          </SignedIn>
-
-          <SignedOut>
+          {/* Avoid a flash before the session resolves. */}
+          {isPending ? null : session ? (
+            <>
+              <Button
+                asChild
+                size="sm"
+                className="hidden bg-blue-600 hover:bg-blue-500 sm:inline-flex"
+              >
+                <Link href="/dashboard/new">
+                  <Plus className="mr-1 h-4 w-4" />
+                  New List
+                </Link>
+              </Button>
+              <UserMenu />
+            </>
+          ) : (
             <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-500">
               <Link href="/sign-in">Sign in</Link>
             </Button>
-          </SignedOut>
+          )}
         </div>
       </div>
     </header>

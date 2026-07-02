@@ -15,6 +15,13 @@
       "when": 1782836589777,
       "tag": "0001_futuristic_jazinda",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782991720466,
+      "tag": "0002_brave_odin",
+      "breakpoints": true
     }
   ]
 }
