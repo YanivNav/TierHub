@@ -7,6 +7,8 @@ const PUBLIC_ROUTES = [
   /^\/sign-in(\/.*)?$/,
   /^\/sign-up(\/.*)?$/,
   /^\/tier-lists\/.*/,
+  /^\/privacy$/,
+  /^\/tos$/,
   /^\/api\/.*/,
 ];
 
