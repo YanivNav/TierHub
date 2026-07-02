@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { eq, and, desc, asc } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "@/server/trpc/trpc";
 import { tierLists, tiers, items, tierListViews } from "@/server/db/schema";
 
@@ -22,7 +23,11 @@ export const tierListRouter = createTRPCRouter({
           items: { orderBy: asc(items.rank) },
         },
       });
-      if (!list) throw new Error("Not found");
+      // Private lists are only visible to their owner. Use NOT_FOUND (not
+      // FORBIDDEN) so we don't leak the existence of a private list by id.
+      if (!list || (!list.isPublic && list.userId !== ctx.userId)) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
       return list;
     }),
 
