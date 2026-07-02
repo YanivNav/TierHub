@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is
   // set - reject anything else so the endpoint isn't publicly triggerable.
   const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
