@@ -2,11 +2,43 @@ import { auth } from "@clerk/nextjs/server";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { db } from "@/server/db";
 import { items, tierLists, tiers } from "@/server/db/schema";
 import { Button } from "@/components/ui/button";
 import TierBoard from "@/components/tier-board";
 import ViewTracker from "@/components/view-tracker";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+
+  const list = await db.query.tierLists.findFirst({
+    where: eq(tierLists.id, id),
+    columns: { title: true, description: true, coverImageUrl: true, isPublic: true },
+  });
+
+  if (!list || !list.isPublic) return { title: "Tier List" };
+
+  return {
+    title: list.title,
+    description: list.description ?? `A tier list ranking on TierHub`,
+    openGraph: {
+      title: list.title,
+      description: list.description ?? undefined,
+      images: list.coverImageUrl ? [list.coverImageUrl] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: list.title,
+      description: list.description ?? undefined,
+      images: list.coverImageUrl ? [list.coverImageUrl] : undefined,
+    },
+  };
+}
 
 export default async function TierListPage({
   params,

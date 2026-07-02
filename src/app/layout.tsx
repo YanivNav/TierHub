@@ -17,8 +17,26 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TierHub",
+  title: {
+    default: "TierHub",
+    template: "%s · TierHub",
+  },
   description: "Create and share tier lists for anything",
+  openGraph: {
+    title: "TierHub",
+    description: "Create and share tier lists for anything",
+    type: "website",
+    siteName: "TierHub",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "TierHub",
+    description: "Create and share tier lists for anything",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
