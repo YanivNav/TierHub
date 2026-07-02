@@ -47,6 +47,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import ScreenshotButton from "@/components/screenshot-button";
+import { getYouTubeVideoId, getYouTubeEmbedUrl } from "@/lib/youtube";
 
 type ItemType = "text" | "image" | "video";
 
@@ -613,21 +614,26 @@ function VideoPreview({ item }: { item?: Item }) {
     );
   }
 
+  // Only embed a YouTube iframe when we can extract a real video id from a
+  // genuine youtube.com/youtu.be URL. Never fall back to embedding an arbitrary
+  // url as the iframe src — that allowed stored XSS (e.g. a `javascript:` url
+  // that merely contained the substring "youtube.com").
+  const youTubeId = getYouTubeVideoId(videoUrl);
+
   return (
     <div className="flex items-center justify-center bg-black rounded-lg overflow-hidden">
-      {videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be") ? (
-        // YouTube video - embed it
+      {youTubeId ? (
         <iframe
           width="100%"
           height="400"
-          src={getYouTubeEmbedUrl(videoUrl)}
+          src={getYouTubeEmbedUrl(youTubeId)}
           title={item.label || "Video"}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
           className="rounded-lg"
         />
       ) : (
-        // Local video file
+        // Uploaded video file (served from our own R2 bucket).
         <video
           src={videoUrl}
           controls
@@ -637,11 +643,4 @@ function VideoPreview({ item }: { item?: Item }) {
       )}
     </div>
   );
-}
-
-function getYouTubeEmbedUrl(url: string): string {
-  const videoId = url.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/
-  )?.[1];
-  return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
 }
