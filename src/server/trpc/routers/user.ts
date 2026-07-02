@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc/trpc";
 import { users } from "@/server/db/schema";
-import { buildAvatarKey, getPresignedUploadUrl, getPublicUrl } from "@/lib/r2";
+import { buildAvatarKey, getPresignedUploadUrl, getPublicUrl, AVATAR_CONTENT_TYPES } from "@/lib/r2";
 
 export const userRouter = createTRPCRouter({
   /** The signed-in user's DB profile (handle/avatar/email shown across the app). */
@@ -55,6 +55,9 @@ export const userRouter = createTRPCRouter({
   getAvatarUploadUrl: protectedProcedure
     .input(z.object({ filename: z.string(), contentType: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      if (!AVATAR_CONTENT_TYPES.includes(input.contentType)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported image type." });
+      }
       const key = buildAvatarKey(ctx.userId, input.filename);
       const uploadUrl = await getPresignedUploadUrl(key, input.contentType);
       return { uploadUrl, publicUrl: getPublicUrl(key) };

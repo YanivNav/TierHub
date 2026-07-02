@@ -3,7 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc/trpc";
 import { items, tierLists } from "@/server/db/schema";
-import { buildItemKey, getPresignedUploadUrl, getPublicUrl } from "@/lib/r2";
+import { buildItemKey, getPresignedUploadUrl, getPublicUrl, ITEM_CONTENT_TYPES } from "@/lib/r2";
 
 export const itemRouter = createTRPCRouter({
   create: protectedProcedure
@@ -68,6 +68,9 @@ export const itemRouter = createTRPCRouter({
         ),
       });
       if (!list) throw new TRPCError({ code: "UNAUTHORIZED" });
+      if (!ITEM_CONTENT_TYPES.includes(input.contentType)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported file type." });
+      }
       const key = buildItemKey(ctx.userId, input.tierListId, input.filename);
       const uploadUrl = await getPresignedUploadUrl(key, input.contentType);
       const publicUrl = getPublicUrl(key);

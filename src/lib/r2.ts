@@ -50,3 +50,16 @@ export function buildItemKey(userId: string, tierListId: string, filename: strin
 export function buildAvatarKey(userId: string, filename: string) {
   return `avatars/${userId}/${Date.now()}-${filename}`;
 }
+
+// Content-type allowlists for presigned uploads. Deliberately excludes
+// image/svg+xml (SVG can embed scripts) and anything not a plain image/video.
+export const AVATAR_CONTENT_TYPES = ["image/png", "image/jpeg", "image/webp"];
+export const ITEM_CONTENT_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+];
