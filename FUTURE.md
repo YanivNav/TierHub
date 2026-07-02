@@ -23,10 +23,14 @@ Post-launch items to revisit. Not blocking for initial release.
 - [ ] Improve keyboard navigation for drag-and-drop
 - [ ] Pagination on dashboard, search, and discover pages
 +
+## Content Moderation
+Public lists launch **open / unmoderated** (deliberate for initial release).
+- [ ] Report button on public tier lists (flag inappropriate content)
+- [ ] Moderation queue / takedown flow for reported lists
+
 ## Features
 - [ ] Forgot password flow
 - [ ] Email notification preferences
-- [ ] Report inappropriate content on public lists
 - [ ] Display "Remixed from" attribution on tier list pages
 - [ ] Profile page, user stats, public user pages
 - [ ] Comments or reactions on tier lists
