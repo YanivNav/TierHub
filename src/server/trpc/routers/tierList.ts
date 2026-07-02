@@ -3,6 +3,7 @@ import { eq, and, desc, asc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "@/server/trpc/trpc";
 import { tierLists, tiers, items, tierListViews } from "@/server/db/schema";
+import { shouldCountView } from "@/server/ratelimit";
 
 export const tierListRouter = createTRPCRouter({
   getAll: publicProcedure.query(async ({ ctx }) => {
@@ -42,6 +43,11 @@ export const tierListRouter = createTRPCRouter({
       });
       if (!list || !list.isPublic) return { recorded: false };
       if (ctx.userId && ctx.userId === list.userId) return { recorded: false };
+
+      // Abuse-proof: count at most one view per (list, viewer-ip) per hour.
+      const ip =
+        ctx.req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+      if (!(await shouldCountView(input.id, ip))) return { recorded: false };
 
       await ctx.db.insert(tierListViews).values({
         tierListId: input.id,

@@ -44,6 +44,20 @@ async function enforce(limiter: Ratelimit | null, key: string) {
   }
 }
 
+// Dedupe recorded views: at most one counted view per (list, viewer-ip) per
+// window, so a public list's view count can't be inflated by repeat/scripted
+// requests. Fails open (counts the view) when Upstash isn't configured.
+const VIEW_DEDUPE_WINDOW_SECONDS = 60 * 60; // 1 hour
+
+export async function shouldCountView(listId: string, ip: string): Promise<boolean> {
+  if (!redis) return true;
+  const res = await redis.set(`view:${listId}:${ip}`, "1", {
+    nx: true,
+    ex: VIEW_DEDUPE_WINDOW_SECONDS,
+  });
+  return res === "OK";
+}
+
 /** Throttle LLM item generation / classification, keyed by user. */
 export const rateLimitAiGenerate = (userId: string) =>
   enforce(generateLimiter, userId);
