@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { TRPCProvider } from "@/lib/trpc/provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import TopBar from "@/components/top-bar";
+import Footer from "@/components/footer";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -52,6 +53,7 @@ export default function RootLayout({
           <TRPCProvider>
             <TopBar />
             {children}
+            <Footer />
           </TRPCProvider>
         </ThemeProvider>
       </body>
