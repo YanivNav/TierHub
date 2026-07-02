@@ -6,6 +6,8 @@ const PUBLIC_ROUTES = [
   /^\/$/,
   /^\/sign-in(\/.*)?$/,
   /^\/sign-up(\/.*)?$/,
+  /^\/forgot-password$/,
+  /^\/reset-password$/,
   /^\/tier-lists\/.*/,
   /^\/privacy$/,
   /^\/tos$/,
