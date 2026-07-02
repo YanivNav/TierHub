@@ -9,8 +9,10 @@ Post-launch items to revisit. Not blocking for initial release.
 - [ ] Free tier: 30 AI generations lifetime, then require subscription
 
 ## Auth
-- [✅] Migrate from Clerk to Better Auth (self-hosted, no vendor lock-in)
-- [ ] Add "Forgot password" link to sign-in form
+- [x] Migrate from Clerk to Better Auth (self-hosted, no vendor lock-in)
+- [x] Forgot-password + email verification flow (Better Auth + Resend)
+- [ ] Point Better Auth's login rate limiter at Upstash (default is in-memory,
+      so per-serverless-instance — weak against distributed brute force)
 
 ## Performance
 - [ ] Replace `<img>` with `<next/image>` for automatic optimization
@@ -29,7 +31,6 @@ Public lists launch **open / unmoderated** (deliberate for initial release).
 - [ ] Moderation queue / takedown flow for reported lists
 
 ## Features
-- [ ] Forgot password flow
 - [ ] Email notification preferences
 - [ ] Display "Remixed from" attribution on tier list pages
 - [ ] Profile page, user stats, public user pages
