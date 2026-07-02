@@ -13,5 +13,10 @@ if (typeof WebSocket !== "undefined") {
   neonConfig.webSocketConstructor = WebSocket;
 }
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL!,
+  max: 8,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
+});
 export const db = drizzle(pool, { schema });
