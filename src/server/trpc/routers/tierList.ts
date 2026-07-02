@@ -79,7 +79,7 @@ export const tierListRouter = createTRPCRouter({
       z.object({
         id: z.string().uuid(),
         title: z.string().min(1).max(100).optional(),
-        description: z.string().max(500).optional(),
+        description: z.string().max(500).nullable().optional(),
         isPublic: z.boolean().optional(),
         coverImageUrl: z.string().url().nullable().optional(),
       })

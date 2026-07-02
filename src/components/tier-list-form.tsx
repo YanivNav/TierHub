@@ -623,7 +623,7 @@ export default function TierListForm({
         await updateTierList.mutateAsync({
           id: tierListId!,
           title: title.trim(),
-          description: description.trim() || undefined,
+          description: description.trim() || null,
           isPublic,
           coverImageUrl,
         });
