@@ -27,11 +27,17 @@ function makeLimiter(tokens: number, window: Duration, prefix: string) {
   });
 }
 
-// Expensive LLM generation - keep tight.
-const generateLimiter = makeLimiter(10, "1 m", "ai-generate");
-// Per-item media resolution (Wikipedia/YouTube) - looser, but still capped so a
-// single user can't burn the YouTube Data API daily quota.
-const mediaLimiter = makeLimiter(60, "1 m", "ai-media");
+// Rate-limit tiers by plan. Free users get tighter limits; Pro users get more
+// headroom so the "higher rate limits" feature gate has teeth.
+const generateLimiters = {
+  free: makeLimiter(10, "1 m", "ai-generate-free"),
+  pro: makeLimiter(30, "1 m", "ai-generate-pro"),
+} as const;
+
+const mediaLimiters = {
+  free: makeLimiter(60, "1 m", "ai-media-free"),
+  pro: makeLimiter(200, "1 m", "ai-media-pro"),
+} as const;
 
 async function enforce(limiter: Ratelimit | null, key: string) {
   if (!limiter) return; // fail-open when Upstash isn't configured
@@ -59,10 +65,26 @@ export async function shouldCountView(listId: string, ip: string): Promise<boole
   return res === "OK";
 }
 
+async function getUserPlan(userId: string): Promise<"free" | "pro"> {
+  // Dynamic import to avoid a circular dependency at module-init time.
+  const { db } = await import("@/server/db");
+  const { users } = await import("@/server/db/schema");
+  const { eq } = await import("drizzle-orm");
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { plan: true },
+  });
+  return (user?.plan as "free" | "pro") ?? "free";
+}
+
 /** Throttle LLM item generation / classification, keyed by user. */
-export const rateLimitAiGenerate = (userId: string) =>
-  enforce(generateLimiter, userId);
+export async function rateLimitAiGenerate(userId: string) {
+  const plan = await getUserPlan(userId);
+  await enforce(generateLimiters[plan], userId);
+}
 
 /** Throttle per-item media (Wikipedia/YouTube) resolution, keyed by user. */
-export const rateLimitAiMedia = (userId: string) =>
-  enforce(mediaLimiter, userId);
+export async function rateLimitAiMedia(userId: string) {
+  const plan = await getUserPlan(userId);
+  await enforce(mediaLimiters[plan], userId);
+}
