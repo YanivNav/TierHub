@@ -137,10 +137,10 @@ export default function TosPage() {
           <p className="text-muted-foreground">
             Questions about these Terms? Contact us at{" "}
             <a
-              href="mailto:yanivnavon123@gmail.com"
+              href="mailto:contact@tier-hub.net"
               className="text-blue-500 underline hover:text-blue-400"
             >
-              yanivnavon123@gmail.com
+              contact@tier-hub.net
             </a>
             .
           </p>

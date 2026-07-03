@@ -72,10 +72,10 @@ export default function PrivacyPage() {
           <p className="mt-2 text-muted-foreground">
             To exercise any of these rights, contact us at{" "}
             <a
-              href="mailto:yanivnavon123@gmail.com"
+              href="mailto:contact@tier-hub.net"
               className="text-blue-500 underline hover:text-blue-400"
             >
-              yanivnavon123@gmail.com
+              contact@tier-hub.net
             </a>
             .
           </p>
@@ -117,10 +117,10 @@ export default function PrivacyPage() {
             If you have questions about this Privacy Policy or our data practices,
             reach out to{" "}
             <a
-              href="mailto:yanivnavon123@gmail.com"
+              href="mailto:contact@tier-hub.net"
               className="text-blue-500 underline hover:text-blue-400"
             >
-              yanivnavon123@gmail.com
+              contact@tier-hub.net
             </a>
             .
           </p>
