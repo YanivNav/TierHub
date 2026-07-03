@@ -81,11 +81,13 @@ export default function TierBoard({
   tiers: initialTiers,
   items,
   isOwner,
+  ownerPlan,
 }: {
   tierListId: string;
   tiers: Tier[];
   items: Item[];
   isOwner: boolean;
+  ownerPlan?: "free" | "pro";
 }) {
   const itemMap = useMemo(
     () => Object.fromEntries(items.map((item) => [item.id, item])),
@@ -352,17 +354,25 @@ export default function TierBoard({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div ref={captureRef} className="overflow-hidden rounded-xl border border-border">
+        <div ref={captureRef} className="relative overflow-hidden rounded-xl border border-border">
           {initialTiers.map((tier, i) => (
-            <TierRow
-              key={tier.id}
-              tier={tier}
-              itemIds={containers[tier.id] ?? EMPTY_IDS}
-              itemMap={itemMap}
-              isLast={i === initialTiers.length - 1}
-              isDragging={!!activeId}
-              onPlayClick={setPreviewVideoId}
-            />
+            <div key={tier.id}>
+              <TierRow
+                tier={tier}
+                itemIds={containers[tier.id] ?? EMPTY_IDS}
+                itemMap={itemMap}
+                isLast={i === initialTiers.length - 1}
+                isDragging={!!activeId}
+                onPlayClick={setPreviewVideoId}
+              />
+              {i === 0 && ownerPlan === "free" && (
+                <div className="pointer-events-none flex select-none justify-center border-b border-border py-0.5">
+                  <span className="text-[10px] font-medium tracking-wide text-foreground/30">
+                    Made with TierHub
+                  </span>
+                </div>
+              )}
+            </div>
           ))}
         </div>
 

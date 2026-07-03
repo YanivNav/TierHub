@@ -4,7 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { db } from "@/server/db";
-import { items, tierLists, tiers } from "@/server/db/schema";
+import { items, tierLists, tiers, users } from "@/server/db/schema";
 import { Button } from "@/components/ui/button";
 import TierBoard from "@/components/tier-board";
 import { toCookielessThumbnailUrl } from "@/lib/youtube";
@@ -62,6 +62,14 @@ export default async function TierListPage({
 
   const isOwner = userId === list.userId;
 
+  // Determine whether screenshots should carry the watermark — gated on the
+  // tier list owner's plan, not the viewer's.
+  const owner = await db.query.users.findFirst({
+    where: eq(users.id, list.userId),
+    columns: { plan: true },
+  });
+  const ownerPlan: "free" | "pro" = (owner?.plan as "free" | "pro") ?? "free";
+
   return (
     <main className="flex-1 bg-background p-6 text-foreground">
       <ViewTracker listId={list.id} isOwner={isOwner} />
@@ -100,6 +108,7 @@ export default async function TierListPage({
             videoUrl: item.videoUrl ?? null,
           }))}
           isOwner={isOwner}
+          ownerPlan={ownerPlan}
         />
       </div>
     </main>
