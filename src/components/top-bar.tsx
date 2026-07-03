@@ -14,7 +14,6 @@ import SearchBar from "@/components/search-bar";
 const NAV = [
   { href: "/", label: "Home" },
   { href: "/dashboard", label: "My Tier Lists" },
-  { href: "/pricing", label: "Pricing" },
 ];
 
 export default function TopBar() {

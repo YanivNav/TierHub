@@ -7,7 +7,7 @@ import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { PRO_PRICING, CREDIT_PACKS } from "@/lib/plans";
 
-export default function BillingSection() {
+export default function UsageSection() {
   const status = trpc.billing.getStatus.useQuery();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -37,9 +37,55 @@ export default function BillingSection() {
   const s = status.data;
   const isPro = s?.plan === "pro";
 
+  const pct =
+    s && s.monthlyAllowance > 0
+      ? Math.round((s.monthlyRemaining / s.monthlyAllowance) * 100)
+      : 0;
+  const barColor =
+    pct > 50 ? "bg-emerald-500" : pct > 25 ? "bg-amber-500" : "bg-red-500";
+
   return (
     <div className="space-y-8">
-      {/* Plan + credits */}
+      {/* Monthly credits progress */}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">
+          Credits
+        </h2>
+        <div className="rounded-lg border border-border bg-card p-4">
+          {s && (
+            <>
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm text-muted-foreground">
+                  Monthly usage
+                </span>
+                <span className="text-sm font-medium tabular-nums">
+                  {s.monthlyRemaining} / {s.monthlyAllowance} remaining
+                </span>
+              </div>
+              <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={`h-full rounded-full transition-all ${barColor}`}
+                  style={{ width: `${Math.max(pct, 4)}%` }}
+                />
+              </div>
+              {s.purchasedCredits > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  +{s.purchasedCredits} purchased credit
+                  {s.purchasedCredits === 1 ? "" : "s"} (never expire)
+                </p>
+              )}
+              {s.creditsResetAt && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Monthly allowance resets{" "}
+                  {new Date(s.creditsResetAt).toLocaleDateString()}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* Plan */}
       <section>
         <h2 className="mb-3 text-sm font-semibold text-foreground">Plan</h2>
         <div className="rounded-lg border border-border bg-card p-4">
@@ -65,19 +111,6 @@ export default function BillingSection() {
               </Button>
             )}
           </div>
-
-          {s && (
-            <p className="mt-3 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{s.totalCredits}</span>{" "}
-              AI generations left
-              {" — "}
-              {s.monthlyRemaining}/{s.monthlyAllowance} monthly
-              {s.purchasedCredits > 0 && <> + {s.purchasedCredits} purchased</>}
-              {s.creditsResetAt && (
-                <> · resets {new Date(s.creditsResetAt).toLocaleDateString()}</>
-              )}
-            </p>
-          )}
           {isPro && s?.currentPeriodEnd && (
             <p className="mt-1 text-xs text-muted-foreground">
               {s.subscriptionStatus === "revoked" ? "Ends" : "Renews"}{" "}

@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import TierEditor, { type PendingTier } from "@/components/tier-editor";
 import { getYouTubeVideoId, getYouTubeThumbnail, getYouTubeEmbedUrl } from "@/lib/youtube";
-import { OUT_OF_CREDITS_ERROR } from "@/lib/plans";
+import { OUT_OF_CREDITS_ERROR, STORAGE_LIMIT_ERROR } from "@/lib/plans";
 
 type ItemType = "text" | "image" | "video";
 
@@ -739,7 +739,14 @@ export default function TierListForm({
         setSavedListId(tierListId!);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      if (msg.includes(STORAGE_LIMIT_ERROR)) {
+        setError(
+          "Storage limit reached. Upgrade to Pro for more uploads or delete some items."
+        );
+      } else {
+        setError(msg);
+      }
       setIsSubmitting(false);
     }
   };
@@ -1172,7 +1179,7 @@ export default function TierListForm({
           )}
           {billing.data && !outOfCredits && (
             <p className="text-xs text-muted-foreground">
-              {billing.data.totalCredits} AI generation
+              {billing.data.totalCredits} credit
               {billing.data.totalCredits === 1 ? "" : "s"} left
               {billing.data.plan === "free" && (
                 <>

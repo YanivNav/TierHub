@@ -2,13 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Settings, User as UserIcon } from "lucide-react";
+import Link from "next/link";
+import { LogOut, Settings, Sparkles, User as UserIcon } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { trpc } from "@/lib/trpc/client";
 
 export default function UserMenu() {
   const { data: session, isPending } = authClient.useSession();
   const user = session?.user;
   const router = useRouter();
+  const billing = trpc.billing.getStatus.useQuery(undefined, {
+    enabled: !!session,
+    staleTime: 60_000,
+  });
 
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -75,6 +81,58 @@ export default function UserMenu() {
               {email && <p className="truncate text-xs text-muted-foreground">{email}</p>}
             </div>
           </div>
+
+          {/* Credit balance */}
+          {billing.data && (
+            <div className="border-b border-border px-3 pb-3 pt-2">
+              {(() => {
+                const b = billing.data;
+                const pct =
+                  b.monthlyAllowance > 0
+                    ? Math.round((b.monthlyRemaining / b.monthlyAllowance) * 100)
+                    : 0;
+                const barColor =
+                  pct > 50
+                    ? "bg-emerald-500"
+                    : pct > 25
+                      ? "bg-amber-500"
+                      : "bg-red-500";
+                return (
+                  <>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">
+                        AI Usage Credits
+                      </span>
+                      <span className="font-medium tabular-nums">
+                        {b.totalCredits} left
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={`h-full rounded-full transition-all ${barColor}`}
+                        style={{ width: `${Math.max(pct, 5)}%` }}
+                      />
+                    </div>
+                    {b.purchasedCredits > 0 && (
+                      <p className="mt-1 text-[10px] leading-none text-muted-foreground">
+                        +{b.purchasedCredits} purchased
+                      </p>
+                    )}
+                    {b.plan === "free" && (
+                      <Link
+                        href="/pricing"
+                        onClick={() => setOpen(false)}
+                        className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-violet-400 hover:text-violet-300"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        Upgrade for more
+                      </Link>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
 
           <div className="p-1">
             <button
