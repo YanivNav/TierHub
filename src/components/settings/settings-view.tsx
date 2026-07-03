@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Link2, ShieldAlert, User } from "lucide-react";
+import { CreditCard, Link2, ShieldAlert, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ProfileSection from "@/components/settings/profile-section";
+import BillingSection from "@/components/settings/billing-section";
 import ConnectionsSection from "@/components/settings/connections-section";
 import DangerSection from "@/components/settings/danger-section";
 
 const SECTIONS = [
   { id: "profile", label: "Profile", icon: User },
+  { id: "billing", label: "Billing", icon: CreditCard },
   { id: "connections", label: "Connections", icon: Link2 },
   { id: "account", label: "Account", icon: ShieldAlert },
 ] as const;
@@ -44,6 +46,7 @@ export default function SettingsView() {
 
       <div className="min-w-0 flex-1">
         {active === "profile" && <ProfileSection />}
+        {active === "billing" && <BillingSection />}
         {active === "connections" && <ConnectionsSection />}
         {active === "account" && <DangerSection />}
       </div>

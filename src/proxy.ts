@@ -9,6 +9,7 @@ const PUBLIC_ROUTES = [
   /^\/forgot-password$/,
   /^\/reset-password$/,
   /^\/tier-lists\/.*/,
+  /^\/pricing$/,
   /^\/privacy$/,
   /^\/tos$/,
   /^\/api\/.*/,

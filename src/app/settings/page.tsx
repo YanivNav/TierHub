@@ -1,6 +1,7 @@
 import SettingsView from "@/components/settings/settings-view";
+import {Metadata} from "next";
 
-export const metadata = { title: "Settings · TierHub" };
+export const metadata: Metadata = { title: "Settings" };
 
 export default function SettingsPage() {
   return (

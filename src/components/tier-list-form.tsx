@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Upload, Type, Video, X, Youtube, Sparkles, Wand2, Play, Loader2, ImageOff } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
@@ -14,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import TierEditor, { type PendingTier } from "@/components/tier-editor";
 import { getYouTubeVideoId, getYouTubeThumbnail, getYouTubeEmbedUrl } from "@/lib/youtube";
+import { OUT_OF_CREDITS_ERROR } from "@/lib/plans";
 
 type ItemType = "text" | "image" | "video";
 
@@ -185,6 +187,7 @@ export default function TierListForm({
 
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
+  const [outOfCredits, setOutOfCredits] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [enrichingItems, setEnrichingItems] = useState<Set<string>>(new Set());
   const [previewVideoLocalId, setPreviewVideoLocalId] = useState<string | null>(null);
@@ -203,6 +206,7 @@ export default function TierListForm({
   // AI
   const enrichItem = trpc.ai.enrichItem.useMutation();
   const trpcUtils = trpc.useUtils();
+  const billing = trpc.billing.getStatus.useQuery();
 
   // Tier mutations (edit mode only)
   const createTier = trpc.tier.create.useMutation();
@@ -348,6 +352,7 @@ export default function TierListForm({
     const prompt = aiPrompt.trim() || undefined;
     if (!prompt && !title.trim()) return;
     setAiError(null);
+    setOutOfCredits(false);
     setIsGenerating(true);
 
     // Phase 2 runs alongside Phase 1: image lookups are dispatched as each item
@@ -389,10 +394,15 @@ export default function TierListForm({
           );
         }
       }
-    } catch {
-      setAiError("Couldn't generate items. Please try again later.");
+    } catch (err) {
+      if (err instanceof Error && err.message.includes(OUT_OF_CREDITS_ERROR)) {
+        setOutOfCredits(true);
+      } else {
+        setAiError("Couldn't generate items. Please try again later.");
+      }
     } finally {
       setIsGenerating(false);
+      void billing.refetch();
     }
 
     // Let in-flight image lookups settle (errors are handled inside).
@@ -1159,6 +1169,29 @@ export default function TierListForm({
             <div className="relative h-0.5 overflow-hidden rounded-full bg-muted">
               <div className="absolute h-full w-2/5 rounded-full bg-violet-500 animate-indeterminate" />
             </div>
+          )}
+          {billing.data && !outOfCredits && (
+            <p className="text-xs text-muted-foreground">
+              {billing.data.totalCredits} AI generation
+              {billing.data.totalCredits === 1 ? "" : "s"} left
+              {billing.data.plan === "free" && (
+                <>
+                  {" · "}
+                  <Link href="/pricing" className="text-violet-400 hover:text-violet-300">
+                    Upgrade
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
+          {outOfCredits && (
+            <p className="text-xs text-amber-400">
+              You&apos;re out of AI credits.{" "}
+              <Link href="/pricing" className="font-medium underline hover:text-amber-300">
+                Upgrade to Pro or buy more
+              </Link>
+              .
+            </p>
           )}
           {aiError && <p className="text-xs text-red-400">{aiError}</p>}
         </div>
