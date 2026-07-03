@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.39",
@@ -15,6 +17,8 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@neondatabase/serverless": "^1.0.2",
+    "@polar-sh/better-auth": "^1.8.4",
+    "@polar-sh/sdk": "^0.48.1",
     "@tanstack/react-query": "^5.90.21",
     "@trpc/client": "^11.0.0",
     "@trpc/react-query": "^11.0.0",
@@ -43,10 +47,12 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.3.1",
     "drizzle-kit": "^0.31.9",
+    "pg": "^8.22.0",
     "png-to-ico": "^3.0.1",
     "shadcn": "^3.8.5",
     "tailwindcss": "^4",
