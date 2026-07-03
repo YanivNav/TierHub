@@ -3,15 +3,17 @@
 Post-launch items to revisit. Not blocking for initial release.
 
 ## Monetization
-- [ ] Stripe integration (subscriptions, checkout, webhooks)
-- [ ] Add `plan` / `stripeCustomerId` columns to users table
-- [ ] Premium feature gates: AI generation, higher rate limits, more storage
-- [ ] Free tier: 30 AI generations lifetime, then require subscription
+- [x] Polar integration (Merchant of Record — subscriptions, checkout, webhooks)
+- [x] Add `plan` / `polarCustomerId` + credit columns to users table
+- [x] Free tier: monthly AI credits + one-time credit packs; Pro subscription
+- [ ] Remaining feature gates (Phase 3): per-user storage cap, Free-export
+      watermark, higher Pro rate limits, conversion analytics
+- [ ] YouTube global daily-quota guard (shared even across paying users)
 
 ## Auth
 - [x] Migrate from Clerk to Better Auth (self-hosted, no vendor lock-in)
 - [x] Forgot-password + email verification flow (Better Auth + Resend)
-- [ ] Point Better Auth's login rate limiter at Upstash (default is in-memory,
+- [x] Point Better Auth's login rate limiter at Upstash (default is in-memory,
       so per-serverless-instance — weak against distributed brute force)
 
 ## Performance
