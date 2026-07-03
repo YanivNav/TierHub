@@ -19,9 +19,9 @@ export const aiRouter = createTRPCRouter({
     )
     .mutation(async function* ({ ctx, input }) {
       await rateLimitAiGenerate(ctx.userId);
-      // One credit per generation run; reserved up front so an aborted stream
+      // 5 credits per generation run; reserved up front so an aborted stream
       // can't be used to bypass the quota. Throws OUT_OF_CREDITS when empty.
-      await consumeGenerationCredit(ctx.userId);
+      await consumeGenerationCredit(ctx.userId, 5);
       yield* generateItemsStream(input);
     }),
 
@@ -35,6 +35,7 @@ export const aiRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       await rateLimitAiGenerate(ctx.userId);
+      await consumeGenerationCredit(ctx.userId, 1);
       return enrichItem(input);
     }),
 
