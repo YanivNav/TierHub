@@ -2,8 +2,10 @@ import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc/trpc";
-import { items, tierLists } from "@/server/db/schema";
+import { items, tierLists, users } from "@/server/db/schema";
 import { buildItemKey, getPresignedUploadUrl, getPublicUrl, ITEM_CONTENT_TYPES } from "@/lib/r2";
+import { countUserMediaItems } from "@/server/billing/credits";
+import { MEDIA_ITEM_LIMITS } from "@/lib/plans";
 
 export const itemRouter = createTRPCRouter({
   create: protectedProcedure
@@ -71,6 +73,21 @@ export const itemRouter = createTRPCRouter({
       if (!ITEM_CONTENT_TYPES.includes(input.contentType)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported file type." });
       }
+
+      // Check media-item storage limit (count-based, no byte tracking).
+      const mediaUsed = await countUserMediaItems(ctx.userId);
+      const owner = await ctx.db.query.users.findFirst({
+        where: eq(users.id, ctx.userId),
+        columns: { plan: true },
+      });
+      const plan = (owner?.plan as "free" | "pro") ?? "free";
+      if (mediaUsed >= MEDIA_ITEM_LIMITS[plan]) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "STORAGE_LIMIT",
+        });
+      }
+
       const key = buildItemKey(ctx.userId, input.tierListId, input.filename);
       const uploadUrl = await getPresignedUploadUrl(key, input.contentType);
       const publicUrl = getPublicUrl(key);
