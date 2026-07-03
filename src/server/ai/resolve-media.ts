@@ -88,7 +88,7 @@ export async function searchYouTubeVideo(query: string): Promise<{
       videoId: item.id.videoId,
       thumbnailUrl:
         item.snippet.thumbnails?.medium?.url ??
-        `https://img.youtube.com/vi/${item.id.videoId}/mqdefault.jpg`,
+        `https://i.ytimg.com/vi/${item.id.videoId}/mqdefault.jpg`,
     };
   } catch (err) {
     console.error(`[youtube] fetch failed for "${query}":`, err);

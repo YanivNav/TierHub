@@ -80,11 +80,7 @@ export default function TopBar() {
           {/* Avoid a flash before the session resolves. */}
           {isPending ? null : session ? (
             <>
-              <Button
-                asChild
-                size="sm"
-                className="hidden bg-blue-600 hover:bg-blue-500 sm:inline-flex"
-              >
+              <Button asChild size="sm" className="hidden sm:inline-flex">
                 <Link href="/dashboard/new">
                   <Plus className="mr-1 h-4 w-4" />
                   New List
@@ -93,7 +89,7 @@ export default function TopBar() {
               <UserMenu />
             </>
           ) : (
-            <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-500">
+            <Button asChild size="sm">
               <Link href="/sign-in">Sign in</Link>
             </Button>
           )}

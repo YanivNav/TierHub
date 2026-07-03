@@ -1178,11 +1178,7 @@ export default function TierListForm({
         >
           Cancel
         </Button>
-        <Button
-          type="submit"
-          disabled={!title.trim() || isSubmitting}
-          className="bg-blue-600 hover:bg-blue-500"
-        >
+        <Button type="submit" disabled={!title.trim() || isSubmitting}>
           {isSubmitting
             ? isCreate ? "Creating..." : "Saving..."
             : isCreate ? "Create Tier List" : "Save Changes"}
@@ -1208,7 +1204,6 @@ export default function TierListForm({
           </Button>
           <Button
             type="button"
-            className="bg-blue-600 hover:bg-blue-500"
             onClick={() => savedListId && router.push(`/tier-lists/${savedListId}`)}
           >
             View tier list

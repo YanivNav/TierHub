@@ -27,7 +27,11 @@ export default function TierListCard({
 }: TierListCardProps) {
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground">
-      <Link href={`/tier-lists/${id}`} className="relative block">
+      <Link
+        href={`/tier-lists/${id}`}
+        className="relative block"
+        aria-label={title}
+      >
         <TierCardThumbnail coverImageUrl={coverImageUrl} images={images} />
         {badge && (
           <span className="absolute right-2 top-2">{badge}</span>

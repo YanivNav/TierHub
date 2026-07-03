@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import { items, tierLists, tiers } from "@/server/db/schema";
 import { Button } from "@/components/ui/button";
 import TierBoard from "@/components/tier-board";
+import { toCookielessThumbnailUrl } from "@/lib/youtube";
 import ViewTracker from "@/components/view-tracker";
 
 export async function generateMetadata({
@@ -95,7 +96,7 @@ export default async function TierListPage({
             label: item.label,
             tierId: item.tierId ?? null,
             rank: item.rank ?? 0,
-            imageUrl: item.imageUrl ?? null,
+            imageUrl: item.imageUrl ? toCookielessThumbnailUrl(item.imageUrl) : null,
             videoUrl: item.videoUrl ?? null,
           }))}
           isOwner={isOwner}

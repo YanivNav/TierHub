@@ -145,11 +145,7 @@ export default function ScreenshotButton({
                     </>
                   )}
                 </Button>
-                <Button
-                  type="button"
-                  onClick={handleDownload}
-                  className="bg-blue-600 hover:bg-blue-500"
-                >
+                <Button type="button" onClick={handleDownload}>
                   <Download className="mr-1.5 h-4 w-4" />
                   Download PNG
                 </Button>

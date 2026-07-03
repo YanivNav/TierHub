@@ -69,7 +69,7 @@ export default function ResetPasswordForm() {
           You can now sign in with your new password.
         </p>
         <Button
-          className="mt-6 w-full bg-blue-600 hover:bg-blue-500"
+          className="mt-6 w-full"
           onClick={() => router.push("/sign-in")}
         >
           Go to sign in
@@ -120,7 +120,7 @@ export default function ResetPasswordForm() {
         <Button
           type="submit"
           disabled={submitting}
-          className="w-full bg-blue-600 hover:bg-blue-500"
+          className="w-full"
         >
           {submitting ? "Updating…" : "Update password"}
         </Button>

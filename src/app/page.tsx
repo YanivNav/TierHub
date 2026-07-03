@@ -52,7 +52,7 @@ export default async function HomePage() {
         <div className="mt-6 flex justify-center gap-3">
           <Link
             href={userId ? "/dashboard/new" : "/sign-up"}
-            className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold transition hover:bg-blue-500"
+            className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white transition hover:bg-blue-500"
           >
             {userId ? "New tier list" : "Create your own tier list"}
           </Link>
@@ -73,7 +73,7 @@ export default async function HomePage() {
             <p className="text-muted-foreground">No public tier lists yet.</p>
             <Link
               href={userId ? "/dashboard/new" : "/sign-up"}
-              className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold transition hover:bg-blue-500"
+              className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white transition hover:bg-blue-500"
             >
               {userId ? "Create the first one" : "Get Started"}
             </Link>

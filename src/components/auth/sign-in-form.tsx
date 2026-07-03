@@ -97,7 +97,7 @@ export default function SignInForm() {
         <Button
           type="submit"
           disabled={submitting}
-          className="w-full bg-blue-600 hover:bg-blue-500"
+          className="w-full"
         >
           {submitting ? "Signing in…" : "Sign in"}
         </Button>

@@ -94,11 +94,11 @@ export default function ProfileSection() {
     <div className="space-y-8">
       {/* Avatar */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-zinc-300">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">
           Profile picture
         </h2>
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-zinc-700 bg-zinc-800 text-xl font-semibold text-white">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-xl font-semibold text-foreground">
             {imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={imageUrl} alt="" className="h-full w-full object-cover" />
@@ -113,7 +113,6 @@ export default function ProfileSection() {
                 variant="outline"
                 disabled={avatarBusy}
                 onClick={() => fileRef.current?.click()}
-                className="border-zinc-700 text-zinc-200 hover:text-white"
               >
                 {avatarBusy ? "Uploading…" : "Upload"}
               </Button>
@@ -122,14 +121,14 @@ export default function ProfileSection() {
                 variant="ghost"
                 disabled={avatarBusy || !imageUrl}
                 onClick={() => applyAvatar(null)}
-                className="text-zinc-400 hover:text-white"
+                className="text-muted-foreground"
               >
                 Remove
               </Button>
             </div>
-            <p className="text-xs text-zinc-500">PNG or JPG, up to 10 MB.</p>
+            <p className="text-xs text-muted-foreground">PNG or JPG, up to 10 MB.</p>
             {avatarError && (
-              <p className="text-sm text-red-400">{avatarError}</p>
+              <p className="text-sm text-destructive">{avatarError}</p>
             )}
           </div>
           <input
@@ -147,14 +146,14 @@ export default function ProfileSection() {
 
       {/* Username */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-zinc-300">Username</h2>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Username</h2>
         <div className="flex items-center gap-2">
           <div className="flex-1 space-y-1.5">
             <Label htmlFor="username" className="sr-only">
               Username
             </Label>
-            <div className="flex items-center rounded-md border border-zinc-700 bg-zinc-900 pl-3 focus-within:ring-1 focus-within:ring-zinc-500">
-              <span className="text-sm text-zinc-500">@</span>
+            <div className="flex items-center rounded-md border border-input pl-3 focus-within:ring-1 focus-within:ring-ring dark:bg-input/30">
+              <span className="text-sm text-muted-foreground">@</span>
               <Input
                 id="username"
                 value={username}
@@ -170,17 +169,16 @@ export default function ProfileSection() {
               />
             </div>
             {usernameError && (
-              <p className="text-sm text-red-400">{usernameError}</p>
+              <p className="text-sm text-destructive">{usernameError}</p>
             )}
             {usernameSaved && !dirty && (
-              <p className="text-sm text-green-400">Saved.</p>
+              <p className="text-sm text-green-600 dark:text-green-400">Saved.</p>
             )}
           </div>
           <Button
             size="sm"
             disabled={!dirty || updateUsername.isPending || me.isLoading}
             onClick={saveUsername}
-            className="bg-blue-600 hover:bg-blue-500"
           >
             {updateUsername.isPending ? "Saving…" : "Save"}
           </Button>

@@ -28,7 +28,7 @@ export default async function DashboardPage() {
       <div className="mx-auto max-w-4xl">
         <div className="mb-8 flex items-center justify-between">
           <h1 className="text-3xl font-bold">My Tier Lists</h1>
-          <Button asChild className="bg-blue-600 hover:bg-blue-500">
+          <Button asChild>
             <Link href="/dashboard/new">+ New List</Link>
           </Button>
         </div>
@@ -36,7 +36,7 @@ export default async function DashboardPage() {
         {lists.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-border py-24 text-center">
             <p className="text-muted-foreground">No tier lists yet.</p>
-            <Button asChild className="bg-blue-600 hover:bg-blue-500">
+            <Button asChild>
               <Link href="/dashboard/new">Create your first one</Link>
             </Button>
           </div>

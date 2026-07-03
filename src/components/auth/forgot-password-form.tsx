@@ -84,7 +84,7 @@ export default function ForgotPasswordForm() {
         <Button
           type="submit"
           disabled={submitting}
-          className="w-full bg-blue-600 hover:bg-blue-500"
+          className="w-full"
         >
           {submitting ? "Sending…" : "Send reset link"}
         </Button>

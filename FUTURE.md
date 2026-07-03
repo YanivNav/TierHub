@@ -24,7 +24,7 @@ Post-launch items to revisit. Not blocking for initial release.
 - [ ] Add aria-labels to item action buttons, OAuth provider buttons
 - [ ] Improve keyboard navigation for drag-and-drop
 - [ ] Pagination on dashboard, search, and discover pages
-+
+
 ## Content Moderation
 Public lists launch **open / unmoderated** (deliberate for initial release).
 - [ ] Report button on public tier lists (flag inappropriate content)

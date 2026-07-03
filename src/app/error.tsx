@@ -15,7 +15,7 @@ export default function ErrorPage({
       <p className="max-w-md text-sm text-muted-foreground">
         An unexpected error occurred. Try refreshing the page.
       </p>
-      <Button onClick={reset} className="bg-blue-600 hover:bg-blue-500">
+      <Button onClick={reset}>
         Try again
       </Button>
     </main>
