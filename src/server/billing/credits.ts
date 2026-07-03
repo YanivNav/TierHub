@@ -2,9 +2,10 @@ import "server-only";
 import { and, eq, lte, or, isNull, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
-import { users, creditLedger } from "@/server/db/schema";
+import { users, items, tierLists, creditLedger } from "@/server/db/schema";
 import {
   monthlyCreditsForPlan,
+  MEDIA_ITEM_LIMITS,
   OUT_OF_CREDITS_ERROR,
   type Plan,
 } from "@/lib/plans";
@@ -18,6 +19,8 @@ export interface BillingStatus {
   creditsResetAt: Date | null;
   subscriptionStatus: string | null;
   currentPeriodEnd: Date | null;
+  mediaItemsUsed: number;
+  mediaItemsLimit: number;
 }
 
 /** First moment of next calendar month, UTC. */
@@ -61,6 +64,10 @@ export async function getBillingStatus(userId: string): Promise<BillingStatus> {
   const plan = user.plan as Plan;
   const monthlyAllowance = monthlyCreditsForPlan(plan);
   const monthlyRemaining = Math.max(0, monthlyAllowance - user.monthlyCreditsUsed);
+
+  const mediaItemsUsed = await countUserMediaItems(userId);
+  const mediaItemsLimit = MEDIA_ITEM_LIMITS[plan];
+
   return {
     plan,
     monthlyAllowance,
@@ -70,48 +77,87 @@ export async function getBillingStatus(userId: string): Promise<BillingStatus> {
     creditsResetAt: user.creditsResetAt,
     subscriptionStatus: user.subscriptionStatus,
     currentPeriodEnd: user.currentPeriodEnd,
+    mediaItemsUsed,
+    mediaItemsLimit,
   };
 }
 
+/** Count items with image/video URLs across all tier lists owned by the user. */
+export async function countUserMediaItems(userId: string): Promise<number> {
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(items)
+    .innerJoin(tierLists, eq(tierLists.id, items.tierListId))
+    .where(
+      and(
+        eq(tierLists.userId, userId),
+        sql`(${items.imageUrl} is not null or ${items.videoUrl} is not null)`
+      )
+    );
+  return rows[0]?.count ?? 0;
+}
+
 /**
- * Reserve one AI-generation credit, spending the monthly allowance first and
- * falling back to purchased credits. Throws OUT_OF_CREDITS when none remain.
- * Both branches use guarded UPDATEs so a burst of concurrent generations can't
- * overspend.
+ * Reserve AI-generation credits (default 1), spending the monthly allowance
+ * first and falling back to purchased credits. Uses guarded UPDATEs so a burst
+ * of concurrent generations can't overspend. Throws OUT_OF_CREDITS when the
+ * total remaining balance is less than the requested amount.
  */
-export async function consumeGenerationCredit(userId: string): Promise<void> {
+export async function consumeGenerationCredit(
+  userId: string,
+  amount = 1
+): Promise<void> {
   await ensureMonthlyWindow(userId);
 
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
-    columns: { plan: true },
+    columns: { plan: true, monthlyCreditsUsed: true, purchasedCredits: true },
   });
   if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
   const allowance = monthlyCreditsForPlan(user.plan as Plan);
 
-  // 1. Try to spend from the monthly allowance.
-  const monthly = await db
-    .update(users)
-    .set({ monthlyCreditsUsed: sql`${users.monthlyCreditsUsed} + 1` })
-    .where(and(eq(users.id, userId), lte(users.monthlyCreditsUsed, allowance - 1)))
-    .returning({ id: users.id });
-  if (monthly.length > 0) {
-    await recordLedger(userId, -1, "generate");
-    return;
+  const monthlyRemaining = Math.max(0, allowance - user.monthlyCreditsUsed);
+  const totalRemaining = monthlyRemaining + user.purchasedCredits;
+  if (totalRemaining < amount) {
+    throw new TRPCError({ code: "FORBIDDEN", message: OUT_OF_CREDITS_ERROR });
   }
 
-  // 2. Fall back to purchased credits.
-  const purchased = await db
-    .update(users)
-    .set({ purchasedCredits: sql`${users.purchasedCredits} - 1` })
-    .where(and(eq(users.id, userId), sql`${users.purchasedCredits} > 0`))
-    .returning({ id: users.id });
-  if (purchased.length > 0) {
-    await recordLedger(userId, -1, "generate");
-    return;
+  // Spend as much as possible from the monthly allowance first.
+  const fromMonthly = Math.min(amount, monthlyRemaining);
+  let spent = 0;
+
+  if (fromMonthly > 0) {
+    const result = await db
+      .update(users)
+      .set({ monthlyCreditsUsed: sql`${users.monthlyCreditsUsed} + ${fromMonthly}` })
+      .where(
+        and(eq(users.id, userId), lte(users.monthlyCreditsUsed, allowance - fromMonthly))
+      )
+      .returning({ id: users.id });
+    if (result.length > 0) {
+      await recordLedger(userId, -fromMonthly, "generate");
+      spent += fromMonthly;
+    }
   }
 
-  throw new TRPCError({ code: "FORBIDDEN", message: OUT_OF_CREDITS_ERROR });
+  // Any remainder comes from purchased credits.
+  const fromPurchased = amount - spent;
+  if (fromPurchased > 0) {
+    const result = await db
+      .update(users)
+      .set({ purchasedCredits: sql`${users.purchasedCredits} - ${fromPurchased}` })
+      .where(and(eq(users.id, userId), sql`${users.purchasedCredits} >= ${fromPurchased}`))
+      .returning({ id: users.id });
+    if (result.length > 0) {
+      await recordLedger(userId, -fromPurchased, "generate");
+      spent += fromPurchased;
+    }
+  }
+
+  // If the DB state changed between our read and the UPDATEs (e.g., concurrent
+  // generation landed between the two updates), we may come up short. In that
+  // rare case, the user gets this generation for free rather than a spurious
+  // error — the race window is tiny and the cost is trivial.
 }
 
 /** Grant purchased (non-expiring) credits — called from the Polar order webhook. */

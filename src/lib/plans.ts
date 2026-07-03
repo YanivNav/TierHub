@@ -14,6 +14,9 @@ export type Plan = "free" | "pro";
  */
 export const OUT_OF_CREDITS_ERROR = "OUT_OF_CREDITS";
 
+/** Thrown when a user hits their media-item storage cap. */
+export const STORAGE_LIMIT_ERROR = "STORAGE_LIMIT";
+
 /** AI generation credits granted per calendar month, by plan. */
 export const MONTHLY_CREDITS: Record<Plan, number> = {
   free: 15,
@@ -23,6 +26,12 @@ export const MONTHLY_CREDITS: Record<Plan, number> = {
 export function monthlyCreditsForPlan(plan: Plan): number {
   return MONTHLY_CREDITS[plan];
 }
+
+/** Max number of image/video items a user can have across all tier lists. */
+export const MEDIA_ITEM_LIMITS: Record<Plan, number> = {
+  free: 50,
+  pro: 500,
+};
 
 /** Per-user storage cap (bytes) for uploaded item/cover images, by plan. */
 export const STORAGE_LIMIT_BYTES: Record<Plan, number> = {
@@ -59,13 +68,13 @@ export const PLAN_FEATURES: Record<Plan, string[]> = {
     `${MONTHLY_CREDITS.free} AI generations / month`,
     "Public sharing & discovery",
     "PNG export",
-    "100 MB storage",
+    "100 MB image uploads",
   ],
   pro: [
     "Everything in Free",
     `${MONTHLY_CREDITS.pro} AI generations / month`,
     "Higher rate limits",
     "No export watermark",
-    "2 GB storage",
+    "2 GB image uploads",
   ],
 };
