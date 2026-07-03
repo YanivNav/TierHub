@@ -8,7 +8,8 @@ import { TRPCError } from "@trpc/server";
 // resolve-media treats a missing YOUTUBE_API_KEY.
 const url = process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-const redis = url && token ? new Redis({ url, token }) : null;
+/** Shared Upstash client (also backs Better Auth's login rate limiter). */
+export const redis = url && token ? new Redis({ url, token }) : null;
 
 if (!redis) {
   console.warn(

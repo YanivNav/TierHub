@@ -3,12 +3,17 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { username } from "better-auth/plugins/username";
 import { nextCookies } from "better-auth/next-js";
+import { polar, checkout, portal, webhooks } from "@polar-sh/better-auth";
+import { Polar } from "@polar-sh/sdk";
 import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
 import { sendEmail } from "@/lib/email";
+import { redis } from "@/server/ratelimit";
+import { checkoutProducts, isPolarConfigured } from "@/server/billing/polar-products";
+import { polarWebhookHandlers } from "@/server/billing/polar-webhooks";
 
 function sanitizeHandle(raw: string): string {
   return raw.toLowerCase().replace(/[^a-z0-9_]+/g, "").slice(0, 30);
@@ -65,10 +70,58 @@ const socialProviders = {
     : {}),
 };
 
+// Point Better Auth's built-in login rate limiter at the shared Upstash Redis
+// (its default store is in-memory / per-serverless-instance). Falls back to the
+// default store when Upstash isn't configured.
+type RateLimitRecord = { key: string; count: number; lastRequest: number };
+function buildRateLimitStorage() {
+  if (!redis) return undefined;
+  const client = redis;
+  return {
+    enabled: true as const,
+    customStorage: {
+      get: async (key: string) =>
+        (await client.get<RateLimitRecord>(`ba-rl:${key}`)) ?? undefined,
+      set: async (key: string, value: RateLimitRecord) => {
+        await client.set(`ba-rl:${key}`, value, { ex: 3600 });
+      },
+    },
+  };
+}
+
+// Polar (Merchant of Record) — only mounted once its env is configured, so the
+// app runs locally without billing set up.
+const polarPlugin = isPolarConfigured()
+  ? polar({
+      client: new Polar({
+        accessToken: process.env.POLAR_ACCESS_TOKEN,
+        server: process.env.POLAR_SERVER === "production" ? "production" : "sandbox",
+      }),
+      createCustomerOnSignUp: true,
+      use: [
+        checkout({
+          products: checkoutProducts(),
+          successUrl: "/dashboard?upgraded=1",
+          authenticatedUsersOnly: true,
+        }),
+        portal(),
+        ...(process.env.POLAR_WEBHOOK_SECRET
+          ? [
+              webhooks({
+                secret: process.env.POLAR_WEBHOOK_SECRET,
+                ...polarWebhookHandlers,
+              }),
+            ]
+          : []),
+      ],
+    })
+  : null;
+
 export const auth = betterAuth({
   baseURL: process.env.NEXT_PUBLIC_APP_URL ?? ('https://' + process.env.VERCEL_URL),
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, { provider: "pg", usePlural: true }),
+  rateLimit: buildRateLimitStorage(),
   // Better Auth's `image` field lives in our existing `imageUrl` column.
   user: { fields: { image: "imageUrl" } },
   emailAndPassword: {
@@ -125,7 +178,8 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [username(), nextCookies()],
+  // nextCookies() must stay last.
+  plugins: [username(), ...(polarPlugin ? [polarPlugin] : []), nextCookies()],
 });
 
 export async function getServerSession() {
