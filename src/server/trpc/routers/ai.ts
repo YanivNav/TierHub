@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc/trpc";
 import { generateItemsStream, enrichItem, resolveMedia } from "@/server/ai/core";
 import { rateLimitAiGenerate, rateLimitAiMedia } from "@/server/ratelimit";
+import { consumeGenerationCredit } from "@/server/billing/credits";
 
 export const aiRouter = createTRPCRouter({
   // Streaming: yields each item as the model finalizes it (consume via the
@@ -18,6 +19,9 @@ export const aiRouter = createTRPCRouter({
     )
     .mutation(async function* ({ ctx, input }) {
       await rateLimitAiGenerate(ctx.userId);
+      // One credit per generation run; reserved up front so an aborted stream
+      // can't be used to bypass the quota. Throws OUT_OF_CREDITS when empty.
+      await consumeGenerationCredit(ctx.userId);
       yield* generateItemsStream(input);
     }),
 
