@@ -10,9 +10,41 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   displayUsername: text("display_username"), // username plugin: original casing
   imageUrl: text("image_url"), // mapped to Better Auth's `image` field via config
+
+  // ── Billing (Polar) ──────────────────────────────────────────────────────
+  plan: text("plan", { enum: ["free", "pro"] }).notNull().default("free"),
+  polarCustomerId: text("polar_customer_id"),
+  subscriptionStatus: text("subscription_status"), // Polar status, null on free
+  currentPeriodEnd: timestamp("current_period_end"),
+
+  // ── Credits ──────────────────────────────────────────────────────────────
+  // Monthly allowance is derived from `plan` (see lib/plans.ts); we only persist
+  // how much of the current month has been used and when the window rolls over.
+  monthlyCreditsUsed: integer("monthly_credits_used").notNull().default(0),
+  creditsResetAt: timestamp("credits_reset_at"),
+  // Purchased (credit-pack) credits never expire and are consumed after the
+  // monthly allowance is exhausted.
+  purchasedCredits: integer("purchased_credits").notNull().default(0),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// Append-only audit log of credit grants and spends (packs, monthly resets,
+// generations). Useful for support and reconciliation against Polar orders.
+export const creditLedger = pgTable(
+  "credit_ledger",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    delta: integer("delta").notNull(), // +granted / -spent
+    reason: text("reason").notNull(), // "generate" | "pack" | "monthly_reset" | ...
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("credit_ledger_user_id_idx").on(t.userId, t.createdAt)]
+);
 
 // ── Better Auth tables ───────────────────────────────────────────────────────
 // Named plural to match this schema's convention; the Drizzle adapter is
@@ -162,6 +194,7 @@ export const tierListViewsRelations = relations(tierListViews, ({ one }) => ({
 }));
 
 export type User = typeof users.$inferSelect;
+export type CreditLedgerEntry = typeof creditLedger.$inferSelect;
 export type TierList = typeof tierLists.$inferSelect;
 export type Tier = typeof tiers.$inferSelect;
 export type Item = typeof items.$inferSelect;
