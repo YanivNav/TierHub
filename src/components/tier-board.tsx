@@ -366,8 +366,8 @@ export default function TierBoard({
                 onPlayClick={setPreviewVideoId}
               />
               {i === 0 && ownerPlan === "free" && (
-                <div className="pointer-events-none flex select-none justify-center border-b border-border py-0.5">
-                  <span className="text-[10px] font-medium tracking-wide text-foreground/30">
+                <div className="pointer-events-none relative z-10 flex h-0 select-none items-center justify-center">
+                  <span className="bg-background px-2 text-[11px] font-medium tracking-wide text-foreground/30">
                     Made with TierHub
                   </span>
                 </div>
