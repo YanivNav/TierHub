@@ -48,17 +48,25 @@ export interface GenerateItemsInput {
 
 function buildGeneratePrompt(input: GenerateItemsInput): string {
   const context = [
-    input.title ? `Title: "${input.title}"` : null,
-    input.description ? `Description: "${input.description}"` : null,
-    input.prompt ? `Request: "${input.prompt}"` : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
+    input.title ? `Tier-list title: ${JSON.stringify(input.title)}` : null,
+    input.description ? `Tier-list description: ${JSON.stringify(input.description)}` : null,
+    input.prompt ? `USER REQUEST (highest priority): ${JSON.stringify(input.prompt)}` : null,
+  ].filter(Boolean).join("\n");
 
   const hasExisting = (input.existingItems?.length ?? 0) > 0;
-  return hasExisting
-    ? `Generate additional items for this tier list.\n\n${context}\n\nExisting items (do NOT repeat these): ${input.existingItems!.join(", ")}.\n\n${COUNT_INSTRUCTION}\n\n${SEARCH_QUERY_INSTRUCTION}`
-    : `Generate items for this tier list.\n\n${context}\n\n${COUNT_INSTRUCTION}\n\n${SEARCH_QUERY_INSTRUCTION}`;
+  const existing = hasExisting
+    ? `\nExisting items (reference only; never repeat them): ${JSON.stringify(input.existingItems)}.`
+    : "";
+
+  return `Generate ${hasExisting ? "additional " : ""}items for this tier list.
+
+${context}${existing}
+
+Follow the USER REQUEST literally. It overrides patterns you infer from the existing items. If the request names specific examples, every named example that is not already present MUST be included, spelled correctly, before adding similar items. Words such as "like", "including", "and such", or "etc." mean include the named examples plus other close matches; they do not make the named examples optional. Existing items define what to avoid, not a narrower genre that can override the request.
+
+Do not output duplicates or alternate spellings of the same item. ${COUNT_INSTRUCTION}
+
+${SEARCH_QUERY_INSTRUCTION}`;
 }
 
 /**
@@ -79,7 +87,7 @@ export async function* generateItemsStream(
   });
 
   for await (const item of result.elementStream) {
-    yield item;
+    yield { ...item, name: item.name.trim() };
   }
 }
 

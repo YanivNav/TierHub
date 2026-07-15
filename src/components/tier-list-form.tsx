@@ -362,7 +362,22 @@ export default function TierListForm({
     const mediaTasks: Promise<void>[] = [];
 
     try {
-      const existingItems = pendingItems.map((i) => i.label || i.type);
+      // Snapshot the items currently visible in the editor, including unsaved
+      // additions/renames and excluding items removed locally. Do not query the
+      // database here: it can be behind the UI until the user saves the form.
+      const existingItems = Array.from(
+        new Set(
+          pendingItems
+            .map((item) => {
+              const label = item.label.trim();
+              if (label) return label;
+              // Uploaded filenames are visible in the UI and are more useful
+              // context than the old placeholder values "image" / "video".
+              return item.file?.name.replace(/\.[^.]+$/, "").trim() ?? "";
+            })
+            .filter(Boolean)
+        )
+      );
       // Phase 1: stream names + classification as the model produces them.
       const stream = await trpcUtils.client.ai.generateItems.mutate({
         prompt,
