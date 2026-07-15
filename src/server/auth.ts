@@ -101,7 +101,10 @@ const polarPlugin = isPolarConfigured()
         accessToken: process.env.POLAR_ACCESS_TOKEN,
         server: process.env.POLAR_SERVER === "production" ? "production" : "sandbox",
       }),
-      createCustomerOnSignUp: true,
+      // Do not make first-time authentication depend on two live Polar API
+      // calls. Checkout passes the authenticated user's externalCustomerId and
+      // lets Polar create/associate the customer when billing is first used.
+      createCustomerOnSignUp: false,
       use: [
         checkout({
           products: checkoutProducts(),

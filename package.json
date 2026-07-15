@@ -60,10 +60,12 @@
     "typescript": "^5"
   },
   "allowScripts": {
+    "sharp@0.34.5": true,
+    "fsevents@2.3.3": true,
+    "msw@2.14.6": true,
+    "esbuild@0.28.1": true,
     "esbuild@0.18.20": true,
-    "esbuild@0.25.12": true,
-    "msw@2.12.10": true,
-    "sharp@0.34.5": true
+    "esbuild@0.25.12": true
   },
   "engines": {
     "node": "24.x"
