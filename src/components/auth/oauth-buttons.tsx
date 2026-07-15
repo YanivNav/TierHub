@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { PROVIDERS, type OAuthProviderId } from "@/lib/oauth-providers";
@@ -8,6 +8,18 @@ import { PROVIDERS, type OAuthProviderId } from "@/lib/oauth-providers";
 export default function OAuthButtons() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState<OAuthProviderId | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get("error_description") ?? params.get("error");
+    if (!oauthError) return;
+
+    setError(getAuthErrorMessage({ message: oauthError }, "oauth"));
+    params.delete("error");
+    params.delete("error_description");
+    const query = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  }, []);
 
   const signInWith = async (provider: OAuthProviderId) => {
     setError("");
@@ -18,6 +30,7 @@ export default function OAuthButtons() {
       const { error } = await authClient.signIn.social({
         provider,
         callbackURL: "/dashboard",
+        errorCallbackURL: "/sign-in",
       });
       if (error) {
         setPending(null);

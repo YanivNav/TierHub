@@ -49,6 +49,10 @@ const socialProviders = {
         google: {
           clientId: process.env.GOOGLE_CLIENT_ID,
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          // Signing out of TierHub does not sign the user out of Google. Always
+          // show Google's chooser so a subsequent sign-in can use another
+          // account instead of silently reusing the previous one.
+          prompt: "select_account" as const,
         },
       }
     : {}),

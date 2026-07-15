@@ -162,11 +162,11 @@ export default function UserMenu() {
             <button
               type="button"
               role="menuitem"
-              onClick={() => {
+              onClick={async () => {
                 setOpen(false);
-                void authClient.signOut({
-                  fetchOptions: { onSuccess: () => router.push("/") },
-                });
+                await authClient.signOut();
+                router.replace("/");
+                router.refresh();
               }}
               className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300"
             >
